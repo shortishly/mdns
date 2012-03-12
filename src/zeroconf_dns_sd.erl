@@ -84,7 +84,10 @@ handle_cast(_Msg, State) ->
 
 handle_info(timeout, State) ->
     announce(State),
-    {noreply, State, crypto:rand_uniform(60 * 1000, 120 * 1000)}.
+    {noreply, State, crypto:rand_uniform(60 * 1000, 120 * 1000)};
+handle_info({udp, _, _, _, _}, State) ->
+    {noreply, State,  crypto:rand_uniform(60 * 1000, 120 * 1000)}.
+
 
 terminate(_, #state{socket = Socket}) ->
     gen_udp:close(Socket).

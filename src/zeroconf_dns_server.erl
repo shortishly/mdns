@@ -109,9 +109,7 @@ handle_record(_, msg, false, 'query', [Question], [Answer], [], [], State) ->
 	    State
     end;
 handle_record(_, msg, true, 'query', [], Answers, [], Resources, State) ->
-    handle_advertisement(Answers, Resources, State);
-handle_record(_, _, _, _, _, _, _, _, _) ->
-    ignored.
+    handle_advertisement(Answers, Resources, State).
 
 
 local_instances() ->
