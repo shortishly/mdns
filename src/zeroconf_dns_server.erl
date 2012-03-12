@@ -29,7 +29,7 @@ start_link() ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
--record(state, {socket}).
+-record(state, {socket, discovered=[]}).
 -include("zeroconf.hrl").
 
 init(_) ->
@@ -46,7 +46,7 @@ init(_) ->
 handle_call(stop, _, State) ->
     {stop, normal, State}.
 
-handle_info({udp, Socket, IP, InPortNo, Packet}, State) ->
+handle_info({udp, Socket, IP, InPortNo, Packet}, S1) ->
     {ok, Record} = inet_dns:decode(Packet),
     Header = inet_dns:header(inet_dns:msg(Record, header)),
     Type = inet_dns:record_type(Record),
@@ -65,16 +65,17 @@ handle_info({udp, Socket, IP, InPortNo, Packet}, State) ->
 			      {authorities, Authorities},
 			      {resources, Resources}
 			     ]),
-    handle_record(Header,
-		  Type,
-		  get_value(qr, Header),
-		  get_value(opcode, Header),
-		  Questions,
-		  Answers,
-		  Authorities,
-		  Resources),
+    S2 = handle_record(Header,
+		       Type,
+		       get_value(qr, Header),
+		       get_value(opcode, Header),
+		       Questions,
+		       Answers,
+		       Authorities,
+		       Resources,
+		       S1),
     inet:setopts(Socket, [{active, once}]),
-    {noreply, State}.
+    {noreply, S2}.
 
 terminate(_Reason, #state{socket = Socket}) ->
     gen_udp:close(Socket).
@@ -86,53 +87,64 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-handle_record(_, msg, false, 'query', [Question], [], [], []) ->
+handle_record(_, msg, false, 'query', [Question], [], [], [], State) ->
     case domain_type_class(Question) of
 	{?TYPE ++ ?DOMAIN, ptr, in} ->
-	    zeroconf_dns_sd:advertise();
+	    zeroconf_dns_sd:advertise(),
+	    State;
 	_ ->
-	    nop
+	    State
     end;
-handle_record(_, msg, false, 'query', [Question], [Answer], [], []) ->
+handle_record(_, msg, false, 'query', [Question], [Answer], [], [], State) ->
     case domain_type_class(Question) of
 	{?TYPE ++ ?DOMAIN, ptr, in} ->
 	    case lists:member(data(Answer), local_instances()) of
 		true ->
-		    zeroconf_dns_sd:advertise();
+		    zeroconf_dns_sd:advertise(),
+		    State;
 		_ ->
-		    nop
+		    State
 	    end;
 	_ ->
-	    nop
+	    State
     end;
-handle_record(_, msg, true, 'query', [], Answers, [], Resources) ->
-    handle_advertisement(Answers, Resources).
+handle_record(_, msg, true, 'query', [], Answers, [], Resources, State) ->
+    handle_advertisement(Answers, Resources, State).
 
 local_instances() ->
     {ok, Names} = net_adm:names(),
     {ok, Hostname} = inet:gethostname(),
     [zeroconf:instance(Node, Hostname) || {Node, _} <- Names].
 
-handle_advertisement([Answer | Answers], Resources) ->
+handle_advertisement([Answer | Answers], Resources, #state{discovered = Discovered} = State) ->
     case domain_type_class(Answer) of
 	{?TYPE ++ ?DOMAIN, ptr, in} ->
 	    case lists:member(data(Answer), local_instances()) of
 		false ->
-		    error_logger:info_report([{discovered, node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
-														  domain(Resource) =:= data(Answer)])}]);
+		    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
+									   domain(Resource) =:= data(Answer)]),
+		    case lists:member(Node, Discovered) of
+			false ->
+			    error_logger:info_report([{module, ?MODULE},
+						      {discovered, Discovered}]),
+			    State#state{discovered = [Node | Discovered]};
+			true ->
+			    State
+		    end;
+
 		_ ->
-		    handle_advertisement(Answers, Resources)
+		    handle_advertisement(Answers, Resources, State)
 	    end;
 	_ ->
-	    handle_advertisement(Answers, Resources)
+	    handle_advertisement(Answers, Resources, State)
     end;
-handle_advertisement([], _) ->
-    ok.
+handle_advertisement([], _, State) ->
+    State.
 
 
 node_and_hostname(P) ->
     {_, _, _, Hostname} = get_value(srv, P),
-    node_name(get_value(txt, P)) ++ Hostname.
+    list_to_atom(node_name(get_value(txt, P)) ++ "@" ++ Hostname).
 
 node_name([[$n, $o, $d, $e, $= | Name], _]) ->
     Name;

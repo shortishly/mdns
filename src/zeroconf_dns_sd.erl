@@ -48,7 +48,7 @@ init(_) ->
     {ok, Socket} = gen_udp:open(?PORT, [{reuseaddr, true},
 					{multicast_if, multicast_if()},
 					{ip, ?ADDRESS}]),
-    {ok, #state{socket = Socket}}.
+    {ok, #state{socket = Socket}, crypto:rand_uniform(500, 1500)}.
 
 multicast_if() ->
     {ok, Interfaces} = inet:getifaddrs(),
@@ -74,7 +74,7 @@ is_running_multicast_interface(Flags) ->
 	lists:member(multicast, Flags).
 
 handle_call(advertise, _, State) ->
-    {reply, announce(State), State};
+    {reply, announce(State), State, crypto:rand_uniform(60 * 1000, 120 * 1000)};
 
 handle_call(stop, _, State) ->
     {stop, normal, State}.
@@ -82,8 +82,9 @@ handle_call(stop, _, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
-handle_info(_Info, State) ->
-    {noreply, State}.
+handle_info(timeout, State) ->
+    announce(State),
+    {noreply, State, crypto:rand_uniform(60 * 1000, 120 * 1000)}.
 
 terminate(_, #state{socket = Socket}) ->
     gen_udp:close(Socket).
