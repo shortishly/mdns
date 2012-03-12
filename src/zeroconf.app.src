@@ -1,0 +1,12 @@
+{application, zeroconf,
+ [
+  {description, ""},
+  {vsn, "1"},
+  {registered, []},
+  {applications, [
+                  kernel,
+                  stdlib
+                 ]},
+  {mod, { zeroconf_app, []}},
+  {env, []}
+ ]}.

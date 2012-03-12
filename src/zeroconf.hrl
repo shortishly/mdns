@@ -1,0 +1,2 @@
+-define(PORT, 5353).
+-define(ADDRESS, {224, 0, 0, 251}).
