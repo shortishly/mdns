@@ -24,5 +24,6 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, [?CHILD(zeroconf_dns_server, worker)]} }.
+    {ok, { {one_for_one, 5, 10}, [?CHILD(zeroconf_dns_server, worker),
+				  ?CHILD(zeroconf_dns_sd, worker)]} }.
 

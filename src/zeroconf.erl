@@ -3,8 +3,10 @@
 	 start/0,
 	 name/0,
 	 stop/0,
-	 make/0]).
+	 make/0,
+	 instance/2]).
 
+-include("zeroconf.hrl").
 
 name() ->
     ?MODULE.
@@ -21,3 +23,5 @@ stop() ->
 make() ->
     make:all([load]).
     
+instance(Node, Hostname) ->
+    Node ++ "@" ++ Hostname ++ "." ++ ?TYPE ++ ?DOMAIN.

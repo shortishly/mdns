@@ -74,9 +74,7 @@ is_running_multicast_interface(Flags) ->
 	lists:member(multicast, Flags).
 
 handle_call(advertise, _, State) ->
-    {ok, Names} = net_adm:names(),
-    {ok, Hostname} = inet:gethostname(),
-    {reply, announce(Names, Hostname, State), State};
+    {reply, announce(State), State};
 
 handle_call(stop, _, State) ->
     {stop, normal, State}.
@@ -97,27 +95,14 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
+announce(State) ->
+    {ok, Names} = net_adm:names(),
+    {ok, Hostname} = inet:gethostname(),
+    announce(Names, Hostname, State).
 
 announce(Names, Hostname, #state{socket = Socket}) ->
-    Domain = "_erlang._udp.local",
-    Header = inet_dns:make_header([{id,0},
-				   {qr,true},
-				   {opcode,'query'},
-				   {aa,true},
-				   {tc,false},
-				   {rd,false},
-				   {ra,false},
-				   {pr,false},
-				   {rcode,0}]),
-    Answer = inet_dns:make_rr([{type, ptr},
-			       {domain, Domain},
-			       {class, in},
-			       {ttl, 4500},
-			       {data, Hostname ++ "._erlang._udp.local"}
-			      ]),
-    Message = message(Header,
-		      [Answer],
-		      services(Names, Hostname, 120) ++ texts(Names, Hostname, 120)),
+    TTL = 120,
+    Message = message(Names, Hostname, TTL),
     error_logger:info_report([{socket, Socket},
 			      {address, ?ADDRESS},
 			      {port, ?PORT},
@@ -127,25 +112,46 @@ announce(Names, Hostname, #state{socket = Socket}) ->
 		 ?PORT,
 		 inet_dns:encode(Message)).
 
+message(Names, Hostname, TTL) ->
+    inet_dns:make_msg([{header, header()},
+		       {anlist, answers(Names, Hostname, TTL)},
+		       {arlist, resources(Names, Hostname, TTL)}]).
 
+header() ->
+    inet_dns:make_header([{id,0},
+			  {qr,true},
+			  {opcode,'query'},
+			  {aa,true},
+			  {tc,false},
+			  {rd,false},
+			  {ra,false},
+			  {pr,false},
+			  {rcode,0}]).
 
-message(Header, Answers, Resources) ->
-    inet_dns:make_msg([{header, Header},
-		       {anlist, Answers},
-		       {arlist, Resources}]).
+answers(Names, Hostname, TTL) ->
+    [inet_dns:make_rr([{type, ptr},
+		       {domain, ?TYPE ++ ?DOMAIN},
+		       {class, in},
+		       {ttl, TTL},
+		       {data, zeroconf:instance(Node, Hostname)}
+		      ]) || {Node, _} <- Names].
+
+resources(Names, Hostname, TTL) ->
+    services(Names, Hostname, TTL) ++ texts(Names, Hostname, TTL).
 
 services(Names, Hostname, TTL) ->
-    [inet_dns:make_rr([{domain, "_erlang._udp.local"},
+    [inet_dns:make_rr([{domain, zeroconf:instance(Node, Hostname)},
 		       {type, srv},
 		       {class, in},
 		       {ttl, TTL},
-		       {data, {0, 0, Port, Hostname ++ ".local"}}]) || {_, Port} <- Names].
+		       {data, {0, 0, Port, Hostname ++ ?DOMAIN}}]) || {Node, Port} <- Names].
 
-texts(Names, _Hostname, TTL) ->
-    [inet_dns:make_rr([{domain, "_erlang._udp.local"},
+texts(Names, Hostname, TTL) ->
+    [inet_dns:make_rr([{domain, zeroconf:instance(Node, Hostname)},
 		       {type, txt},
 		       {class, in},
 		       {ttl, TTL},
-		       {data, [[]]}]) || {_, _} <- Names].
+		       {data, ["node=" ++ Node,
+			       "port=" ++ integer_to_list(Port)]}]) || {Node, Port} <- Names].
 
 
