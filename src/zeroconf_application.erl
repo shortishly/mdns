@@ -10,7 +10,11 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    zeroconf_supervisor:start_link().
+    {ok, _} = S = zeroconf_supervisor:start_link(),
+    ok = zeroconf_node_discovery_event:add_handler(zeroconf_discovery_connect_node_handler),
+    S.
+    
+
 
 stop(_State) ->
     ok.

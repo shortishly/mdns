@@ -128,7 +128,7 @@ handle_advertisement([Answer | Answers], Resources, #state{discovered = Discover
 			false ->
 			    error_logger:info_report([{module, ?MODULE},
 						      {discovered, Node}]),
-			    zeroconf_node_discovery_event:notify_advertisement(Node),
+			    zeroconf_node_discovery_event:notify_node_advertisement(Node),
 			    zeroconf_node_discovery:advertise(),
 			    State#state{discovered = [Node | Discovered]};
 
