@@ -1,4 +1,4 @@
--module(zeroconf_app).
+-module(zeroconf_application).
 
 -behaviour(application).
 
@@ -10,7 +10,7 @@
 %% ===================================================================
 
 start(_StartType, _StartArgs) ->
-    zeroconf_sup:start_link().
+    zeroconf_supervisor:start_link().
 
 stop(_State) ->
     ok.

@@ -1,4 +1,4 @@
--module(zeroconf_dns_server).
+-module(zeroconf_node_discovery_server).
 -behaviour(gen_server).
 -import(proplists, [get_value/2]).
 
@@ -123,12 +123,15 @@ handle_advertisement([Answer | Answers], Resources, #state{discovered = Discover
 	    case lists:member(data(Answer), local_instances()) of
 		false ->
 		    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
-									   domain(Resource) =:= data(Answer)]),
+										  domain(Resource) =:= data(Answer)]),
 		    case lists:member(Node, Discovered) of
 			false ->
 			    error_logger:info_report([{module, ?MODULE},
-						      {discovered, Discovered}]),
+						      {discovered, Node}]),
+			    zeroconf_node_discovery_event:notify_advertisement(Node),
+			    zeroconf_node_discovery:advertise(),
 			    State#state{discovered = [Node | Discovered]};
+
 			true ->
 			    State
 		    end;

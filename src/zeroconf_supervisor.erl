@@ -1,6 +1,4 @@
-
--module(zeroconf_sup).
-
+-module(zeroconf_supervisor).
 -behaviour(supervisor).
 
 %% API
@@ -24,6 +22,12 @@ start_link() ->
 %% ===================================================================
 
 init([]) ->
-    {ok, { {one_for_one, 5, 10}, [?CHILD(zeroconf_dns_server, worker),
-				  ?CHILD(zeroconf_dns_sd, worker)]} }.
+    {ok, { {one_for_one, 5, 10}, [?CHILD(zeroconf_node_discovery_server, worker),
+				  {zeroconf_node_discovery_responder,
+				   {gen_event, start_link, [zeroconf_node_discovery_event:manager()]},
+				   permanent,
+				   5000,
+				   worker,
+				   []},
+				  ?CHILD(zeroconf_node_discovery, worker)]} }.
 

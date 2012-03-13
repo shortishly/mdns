@@ -1,12 +1,12 @@
 {application, zeroconf,
  [
-  {description, ""},
-  {vsn, "1"},
+  {description, "Zeroconf Erlang Node Discovery"},
+  {vsn, "0.1"},
   {registered, []},
   {applications, [
                   kernel,
                   stdlib
                  ]},
-  {mod, { zeroconf_app, []}},
+  {mod, { zeroconf_application, []}},
   {env, []}
  ]}.
