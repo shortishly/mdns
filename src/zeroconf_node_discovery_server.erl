@@ -41,11 +41,16 @@ init(_) ->
 					{broadcast, true},
 					{add_membership, {?ADDRESS, {0, 0, 0, 0}}},
 					{active, once}]),
+    ok = net_kernel:monitor_nodes(true),
     {ok, #state{socket = Socket}}.
 
 handle_call(stop, _, State) ->
     {stop, normal, State}.
 
+handle_info({nodeup, _}, State) ->
+    {noreply, State};
+handle_info({nodedown, Node}, #state{discovered = Discovered} = State) ->
+    {noreply, State#state{discovered = lists:delete(Node, Discovered)}};
 handle_info({udp, Socket, IP, InPortNo, Packet}, S1) ->
     {ok, Record} = inet_dns:decode(Packet),
     Header = inet_dns:header(inet_dns:msg(Record, header)),
@@ -78,6 +83,7 @@ handle_info({udp, Socket, IP, InPortNo, Packet}, S1) ->
     {noreply, S2}.
 
 terminate(_Reason, #state{socket = Socket}) ->
+    net_kernel:monitor_nodes(false),
     gen_udp:close(Socket).
 
 code_change(_OldVsn, State, _Extra) ->
