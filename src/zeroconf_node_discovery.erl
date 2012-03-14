@@ -71,7 +71,8 @@ is_running_multicast_interface(Flags) ->
     lists:member(up, Flags) andalso
 	lists:member(broadcast, Flags) andalso
 	lists:member(running, Flags) andalso
-	lists:member(multicast, Flags).
+	lists:member(multicast, Flags) andalso
+	lists:member(addr, Flags).
 
 handle_call(advertise, _, State) ->
     {reply, announce(State), State, crypto:rand_uniform(60 * 1000, 120 * 1000)};

@@ -23,11 +23,15 @@ start_link() ->
 
 init([]) ->
     {ok, { {one_for_one, 5, 10}, [?CHILD(zeroconf_node_discovery_server, worker),
-				  {zeroconf_node_discovery_responder,
-				   {gen_event, start_link, [{local, zeroconf_node_discovery_event:manager()}]},
-				   permanent,
-				   5000,
-				   worker,
-				   []},
+				  node_discovery_responder(),
 				  ?CHILD(zeroconf_node_discovery, worker)]} }.
+
+node_discovery_responder() ->
+    {zeroconf_node_discovery_responder,
+     {gen_event, start_link, [{local, zeroconf_node_discovery_event:manager()}]},
+     permanent,
+     5000,
+     worker,
+     []}.
+
 
