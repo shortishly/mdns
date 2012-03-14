@@ -55,7 +55,7 @@ multicast_if() ->
     multicast_if(Interfaces).
 
 multicast_if([{_, H} | T]) ->
-    case is_running_multicast_interface(proplists:get_value(flags, H)) of
+    case is_running_multicast_interface(proplists:get_value(flags, H)) andalso proplists:is_defined(addr, H) of
 	true ->
 	    v4(proplists:get_all_values(addr, H));
 	false ->
@@ -71,8 +71,7 @@ is_running_multicast_interface(Flags) ->
     lists:member(up, Flags) andalso
 	lists:member(broadcast, Flags) andalso
 	lists:member(running, Flags) andalso
-	lists:member(multicast, Flags) andalso
-	lists:member(addr, Flags).
+	lists:member(multicast, Flags).
 
 handle_call(advertise, _, State) ->
     {reply, announce(State), State, crypto:rand_uniform(60 * 1000, 120 * 1000)};
