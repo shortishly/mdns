@@ -59,17 +59,6 @@ handle_info({udp, Socket, IP, InPortNo, Packet}, S1) ->
     Answers = [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, anlist)],
     Authorities = [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, nslist)],
     Resources = [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, arlist)],
-    error_logger:info_report([
-			      {ip, IP},
-			      {source_port, InPortNo},
-			      {record, Record},
-			      {header, Header},
-			      {record_type, Type},
-			      {questions, Questions},
-			      {answers, Answers},
-			      {authorities, Authorities},
-			      {resources, Resources}
-			     ]),
     S2 = handle_record(Header,
 		       Type,
 		       get_value(qr, Header),
@@ -132,8 +121,6 @@ handle_advertisement([Answer | Answers], Resources, #state{discovered = Discover
 										  domain(Resource) =:= data(Answer)]),
 		    case lists:member(Node, Discovered) of
 			false ->
-			    error_logger:info_report([{module, ?MODULE},
-						      {discovered, Node}]),
 			    zeroconf_node_discovery_event:notify_node_advertisement(Node),
 			    zeroconf_node_discovery:advertise(),
 			    State#state{discovered = [Node | Discovered]};

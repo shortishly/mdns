@@ -107,10 +107,6 @@ announce(State) ->
 announce(Names, Hostname, #state{socket = Socket}) ->
     TTL = 120,
     Message = message(Names, Hostname, TTL),
-    error_logger:info_report([{socket, Socket},
-			      {address, ?ADDRESS},
-			      {port, ?PORT},
-			      {message, Message}]),
     gen_udp:send(Socket,
 		 ?ADDRESS,
 		 ?PORT,
