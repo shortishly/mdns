@@ -1,14 +1,14 @@
 %%-*- mode: erlang -*-
-{application, zeroconf,
+{application, mdns,
  [
-  {description, "Zeroconf Erlang Node Discovery"},
+  {description, "mDNS Erlang Node Discovery"},
   {vsn, "0.1"},
   {registered, []},
   {applications, [
                   kernel,
                   stdlib
                  ]},
-  {mod, { zeroconf_application, []}},
+  {mod, { mdns_application, []}},
   {env, [
 	 {port, 5353},
 	 {address, {224, 0, 0, 251}},

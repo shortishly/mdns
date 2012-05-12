@@ -1,4 +1,4 @@
--module(zeroconf_supervisor).
+-module(mdns_supervisor).
 -behaviour(supervisor).
 
 %% API
@@ -35,16 +35,16 @@ children(Parameters) ->
      node_discovery_spec(Parameters)].
 
 node_discovery_server_spec(Parameters) ->
-    ?CHILD(zeroconf_node_discovery_server, worker, Parameters).
+    ?CHILD(mdns_node_discovery_server, worker, Parameters).
 
 node_discovery_spec(Parameters) ->
-    ?CHILD(zeroconf_node_discovery, worker, Parameters).
+    ?CHILD(mdns_node_discovery, worker, Parameters).
 
 node_discovery_responder_spec() ->
-    {zeroconf_node_discovery_responder, {
+    {mdns_node_discovery_responder, {
        gen_event,
        start_link, [
-		    {local, zeroconf_node_discovery_event:manager()}
+		    {local, mdns_node_discovery_event:manager()}
 		   ]},
      permanent,
      5000,

@@ -1,4 +1,4 @@
--module(zeroconf_node_discovery).
+-module(mdns_node_discovery).
 -behaviour(gen_server).
 -define(SERVER, ?MODULE).
 

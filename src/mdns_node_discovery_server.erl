@@ -1,4 +1,4 @@
--module(zeroconf_node_discovery_server).
+-module(mdns_node_discovery_server).
 -behaviour(gen_server).
 -import(proplists, [get_value/2]).
 
@@ -27,7 +27,7 @@ start_link() ->
     start_link([]).
 
 start_link(Parameters) ->
-    gen_server:start_link({local, zeroconf:name()}, ?MODULE, Parameters, []).
+    gen_server:start_link({local, mdns:name()}, ?MODULE, Parameters, []).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions

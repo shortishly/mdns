@@ -1,4 +1,4 @@
--module(zeroconf_node_discovery_event).
+-module(mdns_node_discovery_event).
 -export([add_handler/1,
 	 add_handler/2,
 	 manager/0,
@@ -6,7 +6,7 @@
 
 
 manager() ->
-    zeroconf_node_discovery_manager.
+    mdns_node_discovery_manager.
 
 add_handler(Handler) ->
     add_handler(Handler, []).

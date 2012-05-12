@@ -1,4 +1,4 @@
--module(zeroconf).
+-module(mdns).
 -export([start/0,
 	 name/0,
 	 stop/0,

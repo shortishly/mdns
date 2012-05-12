@@ -1,4 +1,4 @@
--module(zeroconf_discovery_connect_node_handler).
+-module(mdns_discovery_connect_node_handler).
 -behaviour(gen_event).
 
 -export([init/1,
@@ -14,7 +14,10 @@ terminate(remove_handler, _) ->
 terminate(stop, _) ->
     ok;
 terminate(Error, State) ->
-    error_logger:error_report([{module, ?MODULE}, {self, self()}, {error, Error}, {state, State}]).
+    error_logger:error_report([{module, ?MODULE},
+			       {self, self()},
+			       {error, Error},
+			       {state, State}]).
 
 handle_event({node_advertisement, Node}, State) ->
     net_kernel:connect_node(Node),
