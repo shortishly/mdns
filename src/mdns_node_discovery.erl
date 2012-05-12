@@ -51,6 +51,7 @@ stop() ->
 		socket}).
 
 init(Parameters) ->
+    process_flag(trap_exit, true),
     init(Parameters, #state{}).
 
 
@@ -87,7 +88,8 @@ handle_info(timeout, State) ->
 handle_info({udp, _, _, _, _}, State) ->
     {noreply, State,  random_timeout(announcements, State)}.
 
-terminate(_, #state{socket = Socket}) ->
+terminate(_, #state{socket = Socket} = State) ->
+    announce(State#state{ttl = 0}),
     gen_udp:close(Socket).
 
 code_change(_OldVsn, State, _Extra) ->
@@ -126,6 +128,7 @@ is_running_multicast_interface(Flags) ->
 	lists:member(multicast, Flags).
 
 announce(State) ->
+    error_logger:info_report([{module, ?MODULE}, {announce, State}]),
     {ok, Names} = net_adm:names(),
     {ok, Hostname} = inet:gethostname(),
     announce(Names, Hostname, State).

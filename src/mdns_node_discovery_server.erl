@@ -41,6 +41,7 @@ start_link(Parameters) ->
 		discovered=[]}).
 
 init(Parameters) ->
+    process_flag(trap_exit, true),
     init(Parameters, #state{}).
 
 init([{address, Address} | T], State) ->
@@ -109,7 +110,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_record(_, msg, false, 'query', [Question], [], [], [], State) ->
     case {type_domain(State), domain_type_class(Question)} of
 	{TypeDomain, {TypeDomain, ptr, in}} ->
-	    zeroconf_node_discovery:advertise(),
+	    mdns_node_discovery:advertise(),
 	    State;
 	_ ->
 	    State
@@ -119,7 +120,7 @@ handle_record(_, msg, false, 'query', [Question], [Answer], [], [], State) ->
 	{TypeDomain, {TypeDomain, ptr, in}} ->
 	    case lists:member(data(Answer), local_instances(State)) of
 		true ->
-		    zeroconf_node_discovery:advertise(),
+		    mdns_node_discovery:advertise(),
 		    State;
 		_ ->
 		    State
@@ -150,8 +151,8 @@ handle_advertisement([Answer | Answers], Resources, #state{discovered = Discover
 										  domain(Resource) =:= data(Answer)]),
 		    case lists:member(Node, Discovered) of
 			false ->
-			    zeroconf_node_discovery_event:notify_node_advertisement(Node),
-			    zeroconf_node_discovery:advertise(),
+			    mdns_node_discovery_event:notify_node_advertisement(Node),
+			    mdns_node_discovery:advertise(),
 			    handle_advertisement(Answers, Resources, State#state{discovered = [Node | Discovered]});
 
 			true ->
