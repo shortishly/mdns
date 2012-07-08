@@ -193,6 +193,7 @@ texts(Names, Hostname, #state{ttl = TTL} = State) ->
 		       {class, in},
 		       {ttl, TTL},
 		       {data, ["node=" ++ Node,
+			       "hostname=" ++ net_adm:localhost(),
 			       "port=" ++ integer_to_list(Port)]}]) || {Node, Port} <- Names].
     
 instance(Node, Hostname, #state{type = Type, domain = Domain}) ->

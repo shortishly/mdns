@@ -184,13 +184,18 @@ handle_advertisement([], _, State) ->
 
 
 node_and_hostname(P) ->
-    {_, _, _, Hostname} = get_value(srv, P),
-    list_to_atom(node_name(get_value(txt, P)) ++ "@" ++ Hostname).
+    list_to_atom(node_name(get_value(txt, P)) ++ "@" ++ host_name(get_value(txt, P))).
 
-node_name([[$n, $o, $d, $e, $= | Name], _]) ->
+node_name([[$n, $o, $d, $e, $= | Name] | _]) ->
     Name;
 node_name([_ | T]) ->
     node_name(T).
+
+host_name([[$h, $o, $s, $t, $n, $a, $m, $e, $= | Hostname] | _]) ->
+    Hostname;
+host_name([_ | T]) ->
+    host_name(T).
+
 		
 
 type_domain(#state{type = Type, domain = Domain}) ->
