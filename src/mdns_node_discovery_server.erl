@@ -161,13 +161,17 @@ handle_advertisement([Answer | Answers], Resources, #state{discovered = Discover
 	{TypeDomain, {TypeDomain, ptr, in}} ->
 	    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
 									  domain(Resource) =:= data(Answer)]),
+
+	    error_logger:info_report([{node, Node},
+				      {discovered, Discovered}]),
+	    
 	    case lists:member(Node, Discovered) of
-		false ->
+		false when node() =/= Node ->
 		    mdns_node_discovery_event:notify_node_advertisement(Node),
 		    mdns_node_discovery:advertise(),
 		    handle_advertisement(Answers, Resources, State#state{discovered = [Node | Discovered]});
 		
-		true ->
+		_ ->
 		    handle_advertisement(Answers, Resources, State)
 	    end;
 	_ ->
