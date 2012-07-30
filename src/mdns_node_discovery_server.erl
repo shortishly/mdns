@@ -157,13 +157,15 @@ instance(Node, Hostname, #state{type = Type, domain = Domain}) ->
     Node ++ "@" ++ Hostname ++ "." ++ Type ++ Domain.
 
 handle_advertisement([Answer | Answers], Resources, #state{discovered = Discovered} = State) ->
-    case {type_domain(State), domain_type_class(Answer)} of
-	{TypeDomain, {TypeDomain, ptr, in}} ->
+    case {type_domain(State), domain_type_class(Answer), ttl(Answer)} of
+	{TypeDomain, {TypeDomain, ptr, in}, 0} ->
 	    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
 									  domain(Resource) =:= data(Answer)]),
+	    handle_advertisement(Answers, Resources, State#state{discovered = lists:delete(Node, Discovered)});
 
-	    error_logger:info_report([{node, Node},
-				      {discovered, Discovered}]),
+	{TypeDomain, {TypeDomain, ptr, in}, TTL} when TTL > 0 ->
+	    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
+									  domain(Resource) =:= data(Answer)]),
 	    
 	    case lists:member(Node, Discovered) of
 		false when node() =/= Node ->
@@ -215,7 +217,8 @@ class(Resource) ->
 data(Resource) ->
     get_value(data, Resource).
 	
-		    
+ttl(Resource) ->		    
+    get_value(ttl, Resource).
 		    
     
     
