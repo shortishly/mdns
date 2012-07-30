@@ -159,21 +159,15 @@ instance(Node, Hostname, #state{type = Type, domain = Domain}) ->
 handle_advertisement([Answer | Answers], Resources, #state{discovered = Discovered} = State) ->
     case {type_domain(State), domain_type_class(Answer)} of
 	{TypeDomain, {TypeDomain, ptr, in}} ->
-	    case lists:member(data(Answer), local_instances(State)) of
+	    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
+									  domain(Resource) =:= data(Answer)]),
+	    case lists:member(Node, Discovered) of
 		false ->
-		    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
-										  domain(Resource) =:= data(Answer)]),
-		    case lists:member(Node, Discovered) of
-			false ->
-			    mdns_node_discovery_event:notify_node_advertisement(Node),
-			    mdns_node_discovery:advertise(),
-			    handle_advertisement(Answers, Resources, State#state{discovered = [Node | Discovered]});
-
-			true ->
-			    handle_advertisement(Answers, Resources, State)
-		    end;
-
-		_ ->
+		    mdns_node_discovery_event:notify_node_advertisement(Node),
+		    mdns_node_discovery:advertise(),
+		    handle_advertisement(Answers, Resources, State#state{discovered = [Node | Discovered]});
+		
+		true ->
 		    handle_advertisement(Answers, Resources, State)
 	    end;
 	_ ->
