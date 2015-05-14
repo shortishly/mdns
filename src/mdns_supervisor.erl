@@ -1,30 +1,31 @@
-%% Copyright (c) 2012, Peter Morgan <peter.james.morgan@gmail.com>
+%% Copyright (c) 2012-2015 Peter Morgan <peter.james.morgan@gmail.com>
 %%
-%% Permission to use, copy, modify, and/or distribute this software for any
-%% purpose with or without fee is hereby granted, provided that the above
-%% copyright notice and this permission notice appear in all copies.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-%% WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-%% MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-%% ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-%% WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-%% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-%% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 
 -module(mdns_supervisor).
 -behaviour(supervisor).
+-define(SERVER, {via, gproc, {n, l, ?MODULE}}).
 
 %% API
--export([start_link/0,
-	 start_link/1]).
+-export([
+	 start_link/0,
+	 start_link/1
+	]).
 
 %% Supervisor callbacks
--export([init/1]).
-
-%% Helper macro for declaring children of supervisor
--define(CHILD(I, T), {I, {I, start_link, []}, permanent, 5000, T, [I]}).
--define(CHILD(I, T, P), {I, {I, start_link, P}, permanent, 5000, T, [I]}).
+-export([
+	 init/1
+	]).
 
 %% ===================================================================
 %% API functions
@@ -34,35 +35,28 @@ start_link() ->
     start_link([]).
 
 start_link(Parameters) ->
-    supervisor:start_link({local, ?MODULE}, ?MODULE, Parameters).
+    supervisor:start_link(?SERVER, ?MODULE, Parameters).
 
 %% ===================================================================
 %% Supervisor callbacks
 %% ===================================================================
 
-init(Parameters) ->
-    {ok, { {one_for_one, 5, 10}, children(Parameters)} }.
+init([]) ->
+    Procs = [worker(mdns_node_discovery_server),
+	     worker(mdns_node_discovery)],
+    {ok, {{one_for_one, 5, 10}, Procs}}.
 
-children(Parameters) ->
-    [node_discovery_server_spec(Parameters),
-     node_discovery_responder_spec(),
-     node_discovery_spec(Parameters)].
+worker(Module) ->
+    worker(Module, permanent).
 
-node_discovery_server_spec(Parameters) ->
-    ?CHILD(mdns_node_discovery_server, worker, Parameters).
+worker(Module, Restart) ->
+    worker(Module, Restart, []).
 
-node_discovery_spec(Parameters) ->
-    ?CHILD(mdns_node_discovery, worker, Parameters).
+worker(Module, Restart, Parameters) ->
+    worker(Module, Module, Restart, Parameters).    
 
-node_discovery_responder_spec() ->
-    {mdns_node_discovery_responder, {
-       gen_event,
-       start_link, [
-		    {local, mdns_node_discovery_event:manager()}
-		   ]},
-     permanent,
-     5000,
-     worker,
-     []}.
+worker(Id, Module, Restart, Parameters) ->
+    {Id, {Module, start_link, Parameters}, Restart, 5000, worker, [Module]}.
+
 
 

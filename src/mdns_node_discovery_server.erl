@@ -1,37 +1,43 @@
-%% Copyright (c) 2012, Peter Morgan <peter.james.morgan@gmail.com>
+%% Copyright (c) 2012-2015 Peter Morgan <peter.james.morgan@gmail.com>
 %%
-%% Permission to use, copy, modify, and/or distribute this software for any
-%% purpose with or without fee is hereby granted, provided that the above
-%% copyright notice and this permission notice appear in all copies.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-%% WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-%% MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-%% ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-%% WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-%% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-%% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 
 -module(mdns_node_discovery_server).
 -behaviour(gen_server).
--import(proplists, [get_value/2]).
+-define(SERVER, {via, gproc, {n, l, ?MODULE}}).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/0,
-	 start_link/1]).
+-export([
+	 start_link/0,
+	 start_link/1,
+	 stop/0
+	]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
 %% ------------------------------------------------------------------
 
--export([init/1,
+-export([
+	 init/1,
 	 handle_call/3,
 	 handle_info/2,
          terminate/2,
-	 code_change/3]).
+	 code_change/3,
+	 handle_cast/2
+	]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -41,34 +47,41 @@ start_link() ->
     start_link([]).
 
 start_link(Parameters) ->
-    gen_server:start_link({local, mdns:name()}, ?MODULE, Parameters, []).
+    gen_server:start_link(?SERVER, ?MODULE, Parameters, []).
+
+stop() ->
+    gen_sever:cast(?SERVER, stop).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
--record(state, {socket,
-		address,
-		domain,
-		port,
-		type,
-		discovered=[]}).
+init([]) ->
+    lists:foreach(fun(Parameter) -> self() ! {Parameter, mdns:get_env(Parameter)} end, [port, address, domain, type]),
+    self() ! connect,
+    {ok, #{discovered => []}}.
 
-init(Parameters) ->
-    process_flag(trap_exit, true),
-    init(Parameters, #state{}).
+handle_call(discovered, _, #{discovered := Discovered} = State) ->
+    {reply, Discovered, State}.
 
-init([{address, Address} | T], State) ->
-    init(T, State#state{address = Address});
-init([{domain, Domain} | T], State) ->
-    init(T, State#state{domain = Domain});
-init([{port, Port} | T], State) ->
-    init(T, State#state{port = Port});
-init([{type, Type} | T], State) ->
-    init(T, State#state{type = Type});
-init([_ | T], State) ->
-    init(T, State);
-init([], #state{address = Address, port = Port} = State) ->
+handle_cast(stop, State) ->
+    {stop, normal, State}.
+
+
+handle_info({address, Address}, State) ->
+    case inet:parse_ipv4_address(Address) of
+	{ok, IPv4} ->
+	    {noreply, State#{address => IPv4}};
+	{error, _} = Error ->
+	    {stop, Error, State}
+    end;
+handle_info({domain, Domain}, State) ->
+    {noreply, State#{domain => Domain}};
+handle_info({port, Port}, State) ->
+    {noreply, State#{port => list_to_integer(Port)}};
+handle_info({type, Type}, State) ->
+    {noreply, State#{type => Type}};
+handle_info(connect, #{address := Address, port := Port} = State) ->
     {ok, Socket} = gen_udp:open(Port, [{mode, binary},
 					{reuseaddr, true},
 					{ip, Address},
@@ -78,39 +91,17 @@ init([], #state{address = Address, port = Port} = State) ->
 					{add_membership, {Address, {0, 0, 0, 0}}},
 					{active, once}]),
     ok = net_kernel:monitor_nodes(true),
-    {ok, State#state{socket = Socket}}.
-
-handle_call(discovered, _, #state{discovered = Discovered} = State) ->
-    {reply, Discovered, State};
-
-handle_call(stop, _, State) ->
-    {stop, normal, State}.
-
+    {noreply, State#{socket => Socket}};
 handle_info({nodeup, _}, State) ->
     {noreply, State};
-handle_info({nodedown, Node}, #state{discovered = Discovered} = State) ->
-    {noreply, State#state{discovered = lists:delete(Node, Discovered)}};
-handle_info({udp, Socket, _, _, Packet}, S1) ->
-    {ok, Record} = inet_dns:decode(Packet),
-    Header = inet_dns:header(inet_dns:msg(Record, header)),
-    Type = inet_dns:record_type(Record),
-    Questions = [inet_dns:dns_query(Query) || Query <- inet_dns:msg(Record, qdlist)],
-    Answers = [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, anlist)],
-    Authorities = [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, nslist)],
-    Resources = [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, arlist)],
-    S2 = handle_record(Header,
-		       Type,
-		       get_value(qr, Header),
-		       get_value(opcode, Header),
-		       Questions,
-		       Answers,
-		       Authorities,
-		       Resources,
-		       S1),
+handle_info({nodedown, Node}, #{discovered := Discovered} = State) ->
+    {noreply, State#{discovered := lists:delete(Node, Discovered)}};
+handle_info({udp, Socket, _, _, Packet}, State) ->
     inet:setopts(Socket, [{active, once}]),
-    {noreply, S2}.
+    {noreply, handle_packet(Packet, State)}.
 
-terminate(_Reason, #state{socket = Socket}) ->
+
+terminate(_Reason, #{socket := Socket}) ->
     net_kernel:monitor_nodes(false),
     gen_udp:close(Socket).
 
@@ -121,7 +112,36 @@ code_change(_OldVsn, State, _Extra) ->
 %% Internal Function Definitions
 %% ------------------------------------------------------------------
 
-handle_record(_, msg, false, 'query', [Question], [], [], [], State) ->
+handle_packet(Packet, State) ->
+    {ok, Record} = inet_dns:decode(Packet),
+    handle_record(Record, State).
+
+handle_record(Record, State) ->
+    Header = header(Record),
+    handle_record(Header, record_type(Record), get_value(qr, Header), get_value(opcode, Header), questions(Record), answers(Record), authorities(Record), resources(Record), State).
+    
+header(Record) ->
+    inet_dns:header(inet_dns:msg(Record, header)).
+
+record_type(Record) ->
+    inet_dns:record_type(Record).
+
+questions(Record) ->
+    [inet_dns:dns_query(Query) || Query <- inet_dns:msg(Record, qdlist)].
+
+answers(Record) ->
+    [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, anlist)].
+		   
+authorities(Record) ->
+    [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, nslist)].
+
+resources(Record) ->
+    [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, arlist)].
+
+
+
+
+handle_record(_, msg, false, query, [Question], [], [], [], State) ->
     case {type_domain(State), domain_type_class(Question)} of
 	{TypeDomain, {TypeDomain, ptr, in}} ->
 	    mdns_node_discovery:advertise(),
@@ -129,7 +149,7 @@ handle_record(_, msg, false, 'query', [Question], [], [], [], State) ->
 	_ ->
 	    State
     end;
-handle_record(_, msg, false, 'query', [Question], [Answer], [], [], State) ->
+handle_record(_, msg, false, query, [Question], [Answer], [], [], State) ->
     case {type_domain(State), domain_type_class(Question)} of
 	{TypeDomain, {TypeDomain, ptr, in}} ->
 	    case lists:member(data(Answer), local_instances(State)) of
@@ -142,10 +162,10 @@ handle_record(_, msg, false, 'query', [Question], [Answer], [], [], State) ->
 	_ ->
 	    State
     end;
-handle_record(_, msg, true, 'query', [], Answers, [], Resources, State) ->
+handle_record(_, msg, true, query, [], Answers, [], Resources, State) ->
     handle_advertisement(Answers, Resources, State);
 
-handle_record(_, msg, false, 'query', _, _, _, _, State) ->
+handle_record(_, msg, false, query, _, _, _, _, State) ->
     State.
 
 local_instances(State) ->
@@ -153,15 +173,14 @@ local_instances(State) ->
     {ok, Hostname} = inet:gethostname(),
     [instance(Node, Hostname, State) || {Node, _} <- Names].
 
-instance(Node, Hostname, #state{type = Type, domain = Domain}) ->
+instance(Node, Hostname, #{type := Type, domain := Domain}) ->
     Node ++ "@" ++ Hostname ++ "." ++ Type ++ Domain.
 
-handle_advertisement([Answer | Answers], Resources, #state{discovered = Discovered} = State) ->
+handle_advertisement([Answer | Answers], Resources, #{discovered := Discovered} = State) ->
     case {type_domain(State), domain_type_class(Answer), ttl(Answer)} of
 	{TypeDomain, {TypeDomain, ptr, in}, 0} ->
-	    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
-									  domain(Resource) =:= data(Answer)]),
-	    handle_advertisement(Answers, Resources, State#state{discovered = lists:delete(Node, Discovered)});
+	    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources, domain(Resource) =:= data(Answer)]),
+	    handle_advertisement(Answers, Resources, State#{discovered := lists:delete(Node, Discovered)});
 
 	{TypeDomain, {TypeDomain, ptr, in}, TTL} when TTL > 0 ->
 	    Node = node_and_hostname([{type(Resource), data(Resource)} || Resource <- Resources,
@@ -171,7 +190,7 @@ handle_advertisement([Answer | Answers], Resources, #state{discovered = Discover
 		false when node() =/= Node ->
 		    mdns_node_discovery_event:notify_node_advertisement(Node),
 		    mdns_node_discovery:advertise(),
-		    handle_advertisement(Answers, Resources, State#state{discovered = [Node | Discovered]});
+		    handle_advertisement(Answers, Resources, State#{discovered := [Node | Discovered]});
 		
 		_ ->
 		    handle_advertisement(Answers, Resources, State)
@@ -198,7 +217,7 @@ host_name([_ | T]) ->
 
 		
 
-type_domain(#state{type = Type, domain = Domain}) ->
+type_domain(#{type := Type, domain := Domain}) ->
     Type ++ Domain.
 
 domain_type_class(Resource) ->
@@ -220,6 +239,5 @@ data(Resource) ->
 ttl(Resource) ->		    
     get_value(ttl, Resource).
 		    
-    
-    
-
+get_value(Key, List) ->
+    proplists:get_value(Key, List).

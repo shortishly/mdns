@@ -1,41 +1,45 @@
-%% Copyright (c) 2012, Peter Morgan <peter.james.morgan@gmail.com>
+%% Copyright (c) 2012-2015 Peter Morgan <peter.james.morgan@gmail.com>
 %%
-%% Permission to use, copy, modify, and/or distribute this software for any
-%% purpose with or without fee is hereby granted, provided that the above
-%% copyright notice and this permission notice appear in all copies.
+%% Licensed under the Apache License, Version 2.0 (the "License");
+%% you may not use this file except in compliance with the License.
+%% You may obtain a copy of the License at
 %%
-%% THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
-%% WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
-%% MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
-%% ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
-%% WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
-%% ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
-%% OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+%% http://www.apache.org/licenses/LICENSE-2.0
+%%
+%% Unless required by applicable law or agreed to in writing, software
+%% distributed under the License is distributed on an "AS IS" BASIS,
+%% WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+%% See the License for the specific language governing permissions and
+%% limitations under the License.
 
 -module(mdns_node_discovery).
 -behaviour(gen_server).
--define(SERVER, ?MODULE).
+-define(SERVER, {via, gproc, {n, l, ?MODULE}}).
 
 %% ------------------------------------------------------------------
 %% API Function Exports
 %% ------------------------------------------------------------------
 
--export([start_link/0,
-	 start_link/1]).
+-export([
+	 start_link/0,
+	 start_link/1,
+	 advertise/0,
+	 stop/0,
+	 multicast_if/0
+	]).
 
 %% ------------------------------------------------------------------
 %% gen_server Function Exports
 %% ------------------------------------------------------------------
 
--export([init/1,
+-export([
+	 init/1,
 	 handle_call/3,
 	 handle_cast/2,
 	 handle_info/2,
          terminate/2,
-	 code_change/3]).
-
--export([advertise/0,
-	 stop/0]).
+	 code_change/3
+	]).
 
 %% ------------------------------------------------------------------
 %% API Function Definitions
@@ -45,7 +49,7 @@ start_link() ->
     start_link([]).
 
 start_link(Parameters) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, Parameters, []).
+    gen_server:start_link(?SERVER, ?MODULE, Parameters, []).
 
 advertise() ->
     gen_server:call(?SERVER, advertise).
@@ -57,35 +61,10 @@ stop() ->
 %% gen_server Function Definitions
 %% ------------------------------------------------------------------
 
--record(state, {type,
-		domain,
-		port,
-		address,
-		ttl = 120,
-		socket}).
-
-init(Parameters) ->
-    process_flag(trap_exit, true),
-    init(Parameters, #state{}).
-
-
-init([{port, Port} | T], State) ->
-    init(T, State#state{port = Port});
-init([{address, Address} | T], State) ->
-    init(T, State#state{address = Address});
-init([{type, Type} | T], State) ->
-    init(T, State#state{type = Type});
-init([{domain, Domain} | T], State) ->
-    init(T, State#state{domain = Domain});
-init([{ttl, TTL} | T], State) ->
-    init(T, State#state{ttl = TTL});
-init([_ | T], State) ->
-    init(T, State);
-init([], #state{port = Port, address = Address} = State) ->
-    {ok, Socket} = gen_udp:open(Port, [{reuseaddr, true},
-				       {multicast_if, multicast_if()},
-				       {ip, Address}]),
-    {ok, State#state{socket = Socket}, random_timeout(initial, State)}.
+init([]) ->
+    lists:foreach(fun(Parameter) -> self() ! {Parameter, mdns:get_env(Parameter)} end, [port, address, domain, type]),
+    self() ! connect,
+    {ok, #{ttl => 120}}.
 
 handle_call(advertise, _, State) ->
     {reply, announce(State), State, random_timeout(announcements, State)};
@@ -96,14 +75,48 @@ handle_call(stop, _, State) ->
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
+handle_info({port, Port}, State) ->
+    {noreply, State#{port => list_to_integer(Port)}};
+handle_info({address, Address}, State) ->
+    case inet:parse_ipv4_address(Address) of
+	{ok, IPv4} ->
+	    {noreply, State#{address => IPv4}};
+	{error, _} = Error ->
+	    {stop, Error, State}
+    end;
+handle_info({type, Type}, State) ->
+    {noreply, State#{type => Type}};
+handle_info({domain, Domain}, State) ->
+    {noreply, State#{domain => Domain}};
+handle_info({ttl, TTL}, State) ->
+    {noreply, State#{ttl => TTL}};
+handle_info(connect, #{port := Port, address := Address} = State) ->
+    case gen_udp:open(Port, [{mode, binary},
+			     {reuseaddr, true},
+			     {ip, Address},
+			     {multicast_ttl, 4},
+			     {multicast_loop, false},
+			     {broadcast, true},
+			     {add_membership, {Address, {0, 0, 0, 0}}},
+			     {active, once}]) of
+	{ok, Socket} ->
+	    {noreply, State#{socket => Socket}, random_timeout(initial, State)};
+
+	{error, _} = Error ->
+	    {stop, Error, State}
+    end;
 handle_info(timeout, State) ->
-    announce(State),
-    {noreply, State, random_timeout(announcements, State)};
+    case announce(State) of
+	ok ->
+	    {noreply, State, random_timeout(announcements, State)};
+	{error, _} = Error ->
+	    {stop, Error, State}
+    end;
 handle_info({udp, _, _, _, _}, State) ->
     {noreply, State,  random_timeout(announcements, State)}.
 
-terminate(_, #state{socket = Socket} = State) ->
-    announce(State#state{ttl = 0}),
+terminate(_, #{socket := Socket} = State) ->
+    announce(State#{ttl => 0}),
     gen_udp:close(Socket).
 
 code_change(_OldVsn, State, _Extra) ->
@@ -115,7 +128,7 @@ code_change(_OldVsn, State, _Extra) ->
 
 random_timeout(initial, _) ->
     crypto:rand_uniform(500, 1500);
-random_timeout(announcements, #state{ttl = TTL}) ->
+random_timeout(announcements, #{ttl := TTL}) ->
     crypto:rand_uniform(TTL * 500, TTL * 1000).
 
 multicast_if() ->
@@ -146,12 +159,9 @@ announce(State) ->
     {ok, Hostname} = inet:gethostname(),
     announce(Names, Hostname, State).
 
-announce(Names, Hostname, #state{address = Address, port = Port, socket = Socket} = State) ->
+announce(Names, Hostname, #{address := Address, port := Port, socket := Socket} = State) ->
     Message = message(Names, Hostname, State),
-    gen_udp:send(Socket,
-		 Address,
-		 Port,
-		 inet_dns:encode(Message)).
+    gen_udp:send(Socket, Address, Port, inet_dns:encode(Message)).
 
 message(Names, Hostname, State) ->
     inet_dns:make_msg([{header, header()},
@@ -161,7 +171,7 @@ message(Names, Hostname, State) ->
 header() ->
     inet_dns:make_header([{id,0},
 			  {qr,true},
-			  {opcode,'query'},
+			  {opcode,query},
 			  {aa,true},
 			  {tc,false},
 			  {rd,false},
@@ -169,7 +179,7 @@ header() ->
 			  {pr,false},
 			  {rcode,0}]).
 
-answers(Names, Hostname, #state{type = Type, domain = Domain, ttl = TTL} = State) ->
+answers(Names, Hostname, #{type := Type, domain := Domain, ttl := TTL} = State) ->
     [inet_dns:make_rr([{type, ptr},
 		       {domain, Type ++ Domain},
 		       {class, in},
@@ -180,14 +190,14 @@ answers(Names, Hostname, #state{type = Type, domain = Domain, ttl = TTL} = State
 resources(Names, Hostname, State) ->
     services(Names, Hostname, State) ++ texts(Names, Hostname, State).
 
-services(Names, Hostname, #state{domain = Domain, ttl = TTL} = State) ->
+services(Names, Hostname, #{domain := Domain, ttl := TTL} = State) ->
     [inet_dns:make_rr([{domain, instance(Node, Hostname, State)},
 		       {type, srv},
 		       {class, in},
 		       {ttl, TTL},
 		       {data, {0, 0, Port, Hostname ++ Domain}}]) || {Node, Port} <- Names].
 
-texts(Names, Hostname, #state{ttl = TTL} = State) ->
+texts(Names, Hostname, #{ttl := TTL} = State) ->
     [inet_dns:make_rr([{domain, instance(Node, Hostname, State)},
 		       {type, txt},
 		       {class, in},
@@ -196,7 +206,7 @@ texts(Names, Hostname, #state{ttl = TTL} = State) ->
 			       "hostname=" ++ net_adm:localhost(),
 			       "port=" ++ integer_to_list(Port)]}]) || {Node, Port} <- Names].
     
-instance(Node, Hostname, #state{type = Type, domain = Domain}) ->
+instance(Node, Hostname, #{type := Type, domain := Domain}) ->
     Node ++ "@" ++ Hostname ++ "." ++ Type ++ Domain.
 
 

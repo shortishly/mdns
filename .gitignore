@@ -4,3 +4,5 @@ deps/*
 erl_crash.dump
 *.plt
 .eunit
+ebin/*.app
+.erlang.mk.packages.*
