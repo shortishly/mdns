@@ -12,13 +12,12 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_node_discovery).
+-module(mdns_advertiser).
 -behaviour(gen_server).
 
 -export([advertise/0]).
 -export([multicast_if/0]).
 -export([start_link/0]).
--export([start_link/1]).
 
 -export([code_change/3]).
 -export([handle_call/3]).
@@ -30,76 +29,51 @@
 
 
 start_link() ->
-    start_link([]).
-
-start_link(Parameters) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Parameters, []).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 advertise() ->
-    gen_server:call(?MODULE, advertise).
+    gen_server:cast(?MODULE, advertise).
 
 stop() ->
-    gen_server:call(?MODULE, stop).
+    gen_server:cast(?MODULE, stop).
 
 
 init([]) ->
-    lists:foreach(
-      fun
-          (Parameter) ->
-              self() ! {Parameter, mdns:get_env(Parameter)}
-      end,
-      [port, address, domain, type]),
-    self() ! connect,
-    {ok, #{ttl => 120}}.
+    case mdns_udp:open() of
+        {ok, State} ->
+            {ok, State#{ttl => mdns_config:ttl()}, random_timeout(initial)};
 
-handle_call(advertise, _, State) ->
-    {reply, announce(State), State, random_timeout(announcements, State)};
+        {error, Reason} ->
+            {stop, Reason}
+    end.
 
-handle_call(stop, _, State) ->
-    {stop, normal, State}.
 
-handle_cast(_Msg, State) ->
-    {noreply, State}.
+handle_call(_, _, State) ->
+    {stop, error, State}.
 
-handle_info({port, Port}, State) ->
-    {noreply, State#{port => list_to_integer(Port)}};
-handle_info({address, Address}, State) ->
-    case inet:parse_ipv4_address(Address) of
-        {ok, IPv4} ->
-            {noreply, State#{address => IPv4}};
-        {error, _} = Error ->
-            {stop, Error, State}
-    end;
-handle_info({type, Type}, State) ->
-    {noreply, State#{type => Type}};
-handle_info({domain, Domain}, State) ->
-    {noreply, State#{domain => Domain}};
-handle_info({ttl, TTL}, State) ->
-    {noreply, State#{ttl => TTL}};
-handle_info(connect, #{port := Port, address := Address} = State) ->
-    case gen_udp:open(Port, [{mode, binary},
-                             {reuseaddr, true},
-                             {ip, Address},
-                             {multicast_ttl, 4},
-                             {multicast_loop, false},
-                             {broadcast, true},
-                             {add_membership, {Address, {0, 0, 0, 0}}},
-                             {active, once}]) of
-        {ok, Socket} ->
-            {noreply, State#{socket => Socket}, random_timeout(initial, State)};
 
-        {error, _} = Error ->
-            {stop, Error, State}
-    end;
-handle_info(timeout, State) ->
+handle_cast(advertise, #{ttl := TTL} = State) ->
     case announce(State) of
         ok ->
-            {noreply, State, random_timeout(announcements, State)};
+            {noreply, State, random_timeout(announcements, TTL)};
+
         {error, _} = Error ->
             {stop, Error, State}
     end;
-handle_info({udp, _, _, _, _}, State) ->
-    {noreply, State,  random_timeout(announcements, State)}.
+handle_cast(stop, State) ->
+    {stop, normal, State}.
+
+
+handle_info(timeout, #{ttl := TTL} = State) ->
+    case announce(State) of
+        ok ->
+            {noreply, State, random_timeout(announcements, TTL)};
+        {error, _} = Error ->
+            {stop, Error, State}
+    end;
+handle_info({udp, _, _, _, _}, #{ttl := TTL} = State) ->
+    {noreply, State,  random_timeout(announcements, TTL)}.
+
 
 terminate(_, #{socket := Socket} = State) ->
     announce(State#{ttl => 0}),
@@ -109,9 +83,10 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 
-random_timeout(initial, _) ->
-    crypto:rand_uniform(500, 1500);
-random_timeout(announcements, #{ttl := TTL}) ->
+random_timeout(initial) ->
+    crypto:rand_uniform(500, 1500).
+
+random_timeout(announcements, TTL) ->
     crypto:rand_uniform(TTL * 500, TTL * 1000).
 
 multicast_if() ->

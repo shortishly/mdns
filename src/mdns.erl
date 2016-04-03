@@ -14,23 +14,20 @@
 
 -module(mdns).
 
--export([discovered/0]).
--export([get_env/1]).
 -export([make/0]).
+-export([notify/2]).
 -export([start/0]).
--export([stop/0]).
+-export([subscribe/1]).
 
 start() ->
     application:ensure_all_started(?MODULE).
 
-stop() ->
-    gen_server:call(?MODULE, stop).
+subscribe(EventType) ->
+    gproc:reg({p, l, {?MODULE, EventType}}).
 
-discovered() ->
-    gen_server:call(?MODULE, discovered).
+notify(EventType, Msg) ->
+    Key = {?MODULE, EventType},
+    gproc:send({p, l, Key}, {self(), Key, Msg}).
 
 make() ->
     make:all([load]).
-
-get_env(Key) ->
-    gproc:get_env(l, ?MODULE, Key, [os_env, app_env]).

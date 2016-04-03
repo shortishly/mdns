@@ -26,6 +26,7 @@ SHELL_OPTS = \
 	-boot start_sasl \
 	-config dev.config \
 	-s $(PROJECT) \
+	-sname $(PROJECT) \
 	-s rb
 
 include erlang.mk

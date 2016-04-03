@@ -12,37 +12,38 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_node_discovery_server).
+-module(mdns_discovery).
 -behaviour(gen_server).
+
+-export([discovered/0]).
+-export([start_link/0]).
+-export([stop/0]).
 
 -export([code_change/3]).
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
 -export([init/1]).
--export([start_link/0]).
--export([start_link/1]).
--export([stop/0]).
 -export([terminate/2]).
 
 start_link() ->
-    start_link([]).
+    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-start_link(Parameters) ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, Parameters, []).
+discovered() ->
+    gen_server:call(?MODULE, discovered).
 
 stop() ->
     gen_sever:cast(?MODULE, stop).
 
 init([]) ->
-    lists:foreach(
-      fun
-          (Parameter) ->
-              self() ! {Parameter, mdns:get_env(Parameter)}
-      end,
-      [port, address, domain, type]),
-    self() ! connect,
-    {ok, #{discovered => []}}.
+    case mdns_udp:open() of
+        {ok, State} ->
+            ok = net_kernel:monitor_nodes(true),
+            {ok, State#{discovered => []}};
+
+        {error, Reason} ->
+            {stop, Reason}
+    end.
 
 handle_call(discovered, _, #{discovered := Discovered} = State) ->
     {reply, Discovered, State}.
@@ -51,31 +52,6 @@ handle_cast(stop, State) ->
     {stop, normal, State}.
 
 
-handle_info({address, Address}, State) ->
-    case inet:parse_ipv4_address(Address) of
-        {ok, IPv4} ->
-            {noreply, State#{address => IPv4}};
-        {error, _} = Error ->
-            {stop, Error, State}
-    end;
-handle_info({domain, Domain}, State) ->
-    {noreply, State#{domain => Domain}};
-handle_info({port, Port}, State) ->
-    {noreply, State#{port => list_to_integer(Port)}};
-handle_info({type, Type}, State) ->
-    {noreply, State#{type => Type}};
-handle_info(connect, #{address := Address, port := Port} = State) ->
-    {ok, Socket} = gen_udp:open(
-                     Port, [{mode, binary},
-                            {reuseaddr, true},
-                            {ip, Address},
-                            {multicast_ttl, 4},
-                            {multicast_loop, true},
-                            {broadcast, true},
-                            {add_membership, {Address, {0, 0, 0, 0}}},
-                            {active, once}]),
-    ok = net_kernel:monitor_nodes(true),
-    {noreply, State#{socket => Socket}};
 handle_info({nodeup, _}, State) ->
     {noreply, State};
 handle_info({nodedown, Node}, #{discovered := Discovered} = State) ->
@@ -88,6 +64,7 @@ handle_info({udp, Socket, _, _, Packet}, State) ->
 terminate(_Reason, #{socket := Socket}) ->
     net_kernel:monitor_nodes(false),
     gen_udp:close(Socket).
+
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
@@ -126,8 +103,6 @@ authorities(Record) ->
 
 resources(Record) ->
     [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, arlist)].
-
-
 
 
 handle_record(_, msg, false, query, [Question], [], [], [], State) ->
@@ -189,8 +164,8 @@ handle_advertisement([Answer | Answers],
 
             case lists:member(Node, Discovered) of
                 false when node() =/= Node ->
-                    mdns_node_discovery_event:notify_node_advertisement(Node),
-                    mdns_node_discovery:advertise(),
+                    mdns:notify(advertisement, Node),
+                    mdns_advertiser:advertise(),
                     handle_advertisement(Answers,
                                          Resources,
                                          State#{
