@@ -1,4 +1,4 @@
-%% Copyright (c) 2012-2015 Peter Morgan <peter.james.morgan@gmail.com>
+%% Copyright (c) 2012-2016 Peter Morgan <peter.james.morgan@gmail.com>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -13,10 +13,11 @@
 %% limitations under the License.
 
 -module(mdns_node_discovery_event).
--export([add_handler/1,
-	 add_handler/2,
-	 manager/0,
-	 notify_node_advertisement/1]).
+
+-export([add_handler/1]).
+-export([add_handler/2]).
+-export([manager/0]).
+-export([notify_node_advertisement/1]).
 
 
 manager() ->
@@ -33,4 +34,3 @@ notify_node_advertisement(Node) ->
 
 notify(Manager, Message) ->
     gen_event:notify(Manager, Message).
-

@@ -1,4 +1,4 @@
-%% Copyright (c) 2012-2015 Peter Morgan <peter.james.morgan@gmail.com>
+%% Copyright (c) 2012-2016 Peter Morgan <peter.james.morgan@gmail.com>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -15,14 +15,12 @@
 -module(mdns_discovery_connect_node_handler).
 -behaviour(gen_event).
 
--export([
-	 init/1,
-	 terminate/2,
-	 handle_info/2,
-	 handle_event/2,
-	 code_change/3,
-	 handle_call/2
-	]).
+-export([code_change/3]).
+-export([handle_call/2]).
+-export([handle_event/2]).
+-export([handle_info/2]).
+-export([init/1]).
+-export([terminate/2]).
 
 init(_) ->
     {ok, stateless}.
@@ -33,9 +31,9 @@ terminate(stop, _) ->
     ok;
 terminate(Error, State) ->
     error_logger:error_report([{module, ?MODULE},
-			       {self, self()},
-			       {error, Error},
-			       {state, State}]).
+                               {self, self()},
+                               {error, Error},
+                               {state, State}]).
 
 handle_event({node_advertisement, Node}, State) ->
     true = net_kernel:connect_node(Node),
@@ -49,5 +47,3 @@ handle_call(_, _) ->
 
 code_change(_, State, _) ->
     {ok, State}.
-
-

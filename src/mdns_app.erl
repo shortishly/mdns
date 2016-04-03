@@ -1,4 +1,4 @@
-%% Copyright (c) 2012-2015 Peter Morgan <peter.james.morgan@gmail.com>
+%% Copyright (c) 2012-2016 Peter Morgan <peter.james.morgan@gmail.com>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
 %% you may not use this file except in compliance with the License.
@@ -12,21 +12,14 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_application).
+-module(mdns_app).
 -behaviour(application).
 
-%% Application callbacks
--export([
-	 start/2,
-	 stop/1
-	]).
-
-%% ===================================================================
-%% Application callbacks
-%% ===================================================================
+-export([start/2]).
+-export([stop/1]).
 
 start(_StartType, _StartArgs) ->
-    mdns_supervisor:start_link().
+    mdns_sup:start_link().
 
 stop(_State) ->
     ok.

@@ -1,5 +1,5 @@
 #-*- mode: makefile-gmake -*-
-# Copyright (c) 2012-2015 Peter Morgan <peter.james.morgan@gmail.com>
+# Copyright (c) 2012-2016 Peter Morgan <peter.james.morgan@gmail.com>
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -14,13 +14,18 @@
 # limitations under the License.
 #
 PROJECT = mdns
-DEPS = gproc
+PROJECT_DESCRIPTION = Multicast DNS
+PROJECT_VERSION = 0.0.1
+
+DEPS = \
+	envy
+
+dep_envy = git https://github.com/shortishly/envy.git master
 
 SHELL_OPTS = \
 	-boot start_sasl \
 	-config dev.config \
-	-name mdns \
-	-s mdns \
+	-s $(PROJECT) \
 	-s rb
 
 include erlang.mk
