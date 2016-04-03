@@ -6,3 +6,4 @@ erl_crash.dump
 .eunit
 ebin/*.app
 .erlang.mk.packages.*
+.erlang.mk

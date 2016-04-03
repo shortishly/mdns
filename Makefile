@@ -15,4 +15,12 @@
 #
 PROJECT = mdns
 DEPS = gproc
+
+SHELL_OPTS = \
+	-boot start_sasl \
+	-config dev.config \
+	-name mdns \
+	-s mdns \
+	-s rb
+
 include erlang.mk

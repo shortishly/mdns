@@ -15,24 +15,20 @@
 -module(mdns).
 -export([
 	 start/0,
-	 name/0,
 	 stop/0,
 	 discovered/0,
 	 make/0,
 	 get_env/1
 	]).
 
-name() ->
-    ?MODULE.
-
 start() ->
     application:ensure_all_started(?MODULE).
 
 stop() ->
-    gen_server:call(name(), stop).
+    gen_server:call(?MODULE, stop).
 
 discovered() ->
-    gen_server:call(name(), discovered).
+    gen_server:call(?MODULE, discovered).
 
 make() ->
     make:all([load]).
