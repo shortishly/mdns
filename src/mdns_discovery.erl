@@ -179,13 +179,18 @@ handle_advertisement([#{domain := ServiceDomain,
                      Resources,
                      ServiceDomain,
                      State) ->
-    Node = node_and_hostname(
-             [{Type,
-               RD} || #{domain := RDomain,
-                          type := Type,
-                          data := RD} <- Resources, RDomain == Data]),
-    mdns:notify(advertisement, #{node => Node, ttl => TTL}),
-    mdns_advertiser:multicast(),
+    case node_and_hostname(
+           [{Type,
+             RD} || #{domain := RDomain,
+                      type := Type,
+                      data := RD} <- Resources, RDomain == Data]) of
+        Node when Node /= node() ->
+            mdns:notify(advertisement, #{node => Node, ttl => TTL}),
+            mdns_advertiser:multicast();
+
+        _ ->
+            nop
+    end,
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
 handle_advertisement([_ | Answers], Resources, ServiceDomain, State) ->
