@@ -22,12 +22,13 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    Procs = [worker(mdns_discovery),
+    Procs = [worker(mdns_manager),
+             worker(mdns_discovery),
              worker(mdns_advertiser)],
     {ok, {#{intensity => 5, period => 5}, Procs}}.
 
 worker(Module) ->
-    worker(Module, permanent).
+    worker(Module, transient).
 
 worker(Module, Restart) ->
     worker(Module, Restart, []).
