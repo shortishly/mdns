@@ -15,8 +15,7 @@
 -module(mdns_advertiser).
 -behaviour(gen_server).
 
--export([advertise/0]).
--export([multicast_if/0]).
+-export([multicast/0]).
 -export([start_link/0]).
 
 -export([code_change/3]).
@@ -31,8 +30,8 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-advertise() ->
-    gen_server:cast(?MODULE, advertise).
+multicast() ->
+    gen_server:cast(?MODULE, multicast).
 
 stop() ->
     gen_server:cast(?MODULE, stop).
@@ -51,8 +50,7 @@ init([]) ->
 handle_call(_, _, State) ->
     {stop, error, State}.
 
-
-handle_cast(advertise, #{ttl := TTL} = State) ->
+handle_cast(multicast, #{ttl := TTL} = State) ->
     case announce(State) of
         ok ->
             {noreply, State, random_timeout(announcements, TTL)};
@@ -68,6 +66,7 @@ handle_info(timeout, #{ttl := TTL} = State) ->
     case announce(State) of
         ok ->
             {noreply, State, random_timeout(announcements, TTL)};
+
         {error, _} = Error ->
             {stop, Error, State}
     end;
@@ -89,49 +88,17 @@ random_timeout(initial) ->
 random_timeout(announcements, TTL) ->
     crypto:rand_uniform(TTL * 500, TTL * 1000).
 
-multicast_if() ->
-    {ok, Interfaces} = inet:getifaddrs(),
-    multicast_if(Interfaces).
-
-multicast_if([{_, H} | T]) ->
-    case is_running_multicast_interface(
-           proplists:get_value(flags, H)) andalso
-        proplists:is_defined(addr, H) of
-
-        true ->
-            v4(proplists:get_all_values(addr, H));
-
-        false ->
-            multicast_if(T)
-    end.
-
-v4([{_, _, _, _} = V4 | _]) ->
-    V4;
-v4([_ | T]) ->
-    v4(T).
-
-is_running_multicast_interface(Flags) ->
-    lists:member(up, Flags) andalso
-        lists:member(broadcast, Flags) andalso
-        lists:member(running, Flags) andalso
-        lists:member(multicast, Flags).
-
-announce(State) ->
+announce(#{address := Address, port := Port, socket := Socket} = State) ->
     {ok, Names} = net_adm:names(),
     {ok, Hostname} = inet:gethostname(),
-    announce(Names, Hostname, State).
-
-announce(Names,
-         Hostname,
-         #{address := Address, port := Port, socket := Socket} = State) ->
-    Message = message(Names, Hostname, State),
-    gen_udp:send(Socket, Address, Port, inet_dns:encode(Message)).
+    gen_udp:send(Socket, Address, Port, message(Names, Hostname, State)).
 
 message(Names, Hostname, State) ->
-    inet_dns:make_msg(
-      [{header, header()},
-       {anlist, answers(Names, Hostname, State)},
-       {arlist, resources(Names, Hostname, State)}]).
+    inet_dns:encode(
+      inet_dns:make_msg(
+        [{header, header()},
+         {anlist, answers(Names, Hostname, State)},
+         {arlist, resources(Names, Hostname, State)}])).
 
 header() ->
     inet_dns:make_header(
@@ -147,10 +114,10 @@ header() ->
 
 answers(Names,
         Hostname,
-        #{type := Type, domain := Domain, ttl := TTL} = State) ->
+        #{service := Service, domain := Domain, ttl := TTL} = State) ->
     [inet_dns:make_rr(
        [{type, ptr},
-        {domain, Type ++ Domain},
+        {domain, Service ++ Domain},
         {class, in},
         {ttl, TTL},
         {data, instance(Node, Hostname, State)}]) || {Node, _} <- Names].
@@ -172,9 +139,12 @@ texts(Names, Hostname, #{ttl := TTL} = State) ->
         {type, txt},
         {class, in},
         {ttl, TTL},
-        {data, ["node=" ++ Node,
-                "hostname=" ++ net_adm:localhost(),
-                "port=" ++ integer_to_list(Port)]}]) || {Node, Port} <- Names].
+        {data, [kv("node", Node),
+                kv("hostname", net_adm:localhost()),
+                kv("port", Port)]}]) || {Node, Port} <- Names].
 
-instance(Node, Hostname, #{type := Type, domain := Domain}) ->
-    Node ++ "@" ++ Hostname ++ "." ++ Type ++ Domain.
+kv(Key, Value) when length(Key) =< 9 ->
+    Key ++ "=" ++ any:to_list(Value).
+
+instance(Node, Hostname, #{service := Service, domain := Domain}) ->
+    Node ++ "@" ++ Hostname ++ "." ++ Service ++ Domain.

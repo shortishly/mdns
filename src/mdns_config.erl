@@ -17,7 +17,7 @@
 -export([address/1]).
 -export([domain/0]).
 -export([port/1]).
--export([type/0]).
+-export([service/0]).
 -export([ttl/0]).
 
 
@@ -37,8 +37,8 @@ address(multicast) ->
 domain() ->
     envy:to_list(mdns, domain, default(".local")).
 
-type() ->
-    envy:to_list(mdns, type, default("_erlang._tcp")).
+service() ->
+    envy:to_list(mdns, service, default("_erlang._tcp")).
 
 ttl() ->
     envy:to_integer(mdns, ttl, default(120)).

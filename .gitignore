@@ -8,3 +8,4 @@ ebin/*.app
 .erlang.mk.packages.*
 .erlang.mk
 *.d
+xrefr

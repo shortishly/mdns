@@ -24,12 +24,12 @@ open() ->
         case gen_udp:open(Port, options(Address)) of
             {ok, Socket} ->
                 Domain = mdns_config:domain(),
-                Type = mdns_config:type(),
+                Service = mdns_config:service(),
                 {ok, #{address => Address,
                        domain => Domain,
                        port => Port,
-                       socket => Socket,
-                       type => Type}};
+                       service => Service,
+                       socket => Socket}};
 
             {error, _} = Error ->
                 Error

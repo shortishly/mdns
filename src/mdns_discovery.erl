@@ -15,7 +15,6 @@
 -module(mdns_discovery).
 -behaviour(gen_server).
 
--export([discovered/0]).
 -export([start_link/0]).
 -export([stop/0]).
 
@@ -29,40 +28,34 @@
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-discovered() ->
-    gen_server:call(?MODULE, discovered).
-
 stop() ->
-    gen_sever:cast(?MODULE, stop).
+    gen_server:cast(?MODULE, stop).
+
 
 init([]) ->
     case mdns_udp:open() of
         {ok, State} ->
-            ok = net_kernel:monitor_nodes(true),
-            {ok, State#{discovered => []}};
+            {ok, State};
 
         {error, Reason} ->
             {stop, Reason}
     end.
 
-handle_call(discovered, _, #{discovered := Discovered} = State) ->
-    {reply, Discovered, State}.
+
+handle_call(_, _, State) ->
+    {stop, error, State}.
+
 
 handle_cast(stop, State) ->
     {stop, normal, State}.
 
 
-handle_info({nodeup, _}, State) ->
-    {noreply, State};
-handle_info({nodedown, Node}, #{discovered := Discovered} = State) ->
-    {noreply, State#{discovered := lists:delete(Node, Discovered)}};
 handle_info({udp, Socket, _, _, Packet}, State) ->
     inet:setopts(Socket, [{active, once}]),
     {noreply, handle_packet(Packet, State)}.
 
 
 terminate(_Reason, #{socket := Socket}) ->
-    net_kernel:monitor_nodes(false),
     gen_udp:close(Socket).
 
 
@@ -70,13 +63,10 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 
-handle_packet(Packet, State) ->
+handle_packet(Packet, #{service := Service, domain := Domain} = State) ->
     {ok, Record} = inet_dns:decode(Packet),
-    handle_record(Record, State).
-
-handle_record(Record, State) ->
     Header = header(Record),
-    handle_record(Header,
+    handle_record(header(Record),
                   record_type(Record),
                   get_value(qr, Header),
                   get_value(opcode, Header),
@@ -84,6 +74,7 @@ handle_record(Record, State) ->
                   answers(Record),
                   authorities(Record),
                   resources(Record),
+                  Service ++ Domain,
                   State).
 
 header(Record) ->
@@ -93,97 +84,119 @@ record_type(Record) ->
     inet_dns:record_type(Record).
 
 questions(Record) ->
-    [inet_dns:dns_query(Query) || Query <- inet_dns:msg(Record, qdlist)].
+    Qs = inet_dns:msg(Record, qdlist),
+    [maps:from_list(inet_dns:dns_query(Q)) || Q <- Qs].
 
 answers(Record) ->
-    [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, anlist)].
+    rr(inet_dns:msg(Record, anlist)).
 
 authorities(Record) ->
-    [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, nslist)].
+    rr(inet_dns:msg(Record, nslist)).
 
 resources(Record) ->
-    [inet_dns:rr(RR) || RR <- inet_dns:msg(Record, arlist)].
+    rr(inet_dns:msg(Record, arlist)).
+
+rr(Resources) ->
+    [maps:from_list(inet_dns:rr(Resource)) || Resource <- Resources].
 
 
-handle_record(_, msg, false, query, [Question], [], [], [], State) ->
-    case {type_domain(State), domain_type_class(Question)} of
-        {TypeDomain, {TypeDomain, ptr, in}} ->
-            mdns_node_discovery:advertise(),
+handle_record(_,
+              msg,
+              false,
+              query,
+              [#{domain := ServiceDomain, type := ptr, class := in}],
+              [],
+              [],
+              [],
+              ServiceDomain,
+              State) ->
+    mdns_advertiser:multicast(),
+    State;
+
+handle_record(_,
+              msg,
+              false,
+              query,
+              [#{domain := ServiceDomain, type := ptr, class := in}],
+              [#{data := Data}],
+              [],
+              [],
+              ServiceDomain,
+              State) ->
+    case lists:member(Data, local_instances(State)) of
+        true ->
+            mdns_advertiser:multicast(),
             State;
         _ ->
             State
     end;
-handle_record(_, msg, false, query, [Question], [Answer], [], [], State) ->
-    case {type_domain(State), domain_type_class(Question)} of
-        {TypeDomain, {TypeDomain, ptr, in}} ->
-            case lists:member(data(Answer), local_instances(State)) of
-                true ->
-                    mdns_node_discovery:advertise(),
-                    State;
-                _ ->
-                    State
-            end;
-        _ ->
-            State
-    end;
-handle_record(_, msg, true, query, [], Answers, [], Resources, State) ->
-    handle_advertisement(Answers, Resources, State);
 
-handle_record(_, msg, false, query, _, _, _, _, State) ->
+handle_record(_,
+              msg,
+              true,
+              query,
+              [],
+              Answers,
+              [],
+              Resources,
+              ServiceDomain,
+              State) ->
+    handle_advertisement(Answers, Resources, ServiceDomain, State);
+
+handle_record(_, msg, false, query, _, _, _, _, _, State) ->
     State.
+
 
 local_instances(State) ->
     {ok, Names} = net_adm:names(),
     {ok, Hostname} = inet:gethostname(),
     [instance(Node, Hostname, State) || {Node, _} <- Names].
 
-instance(Node, Hostname, #{type := Type, domain := Domain}) ->
-    Node ++ "@" ++ Hostname ++ "." ++ Type ++ Domain.
+instance(Node, Hostname, #{service := Service, domain := Domain}) ->
+    Node ++ "@" ++ Hostname ++ "." ++ Service ++ Domain.
 
-handle_advertisement([Answer | Answers],
+handle_advertisement([#{domain := ServiceDomain,
+                        type := ptr,
+                        class := in,
+                        ttl := 0,
+                        data := Data} | Answers],
                      Resources,
-                     #{discovered := Discovered} = State) ->
-    case {type_domain(State), domain_type_class(Answer), ttl(Answer)} of
+                     ServiceDomain,
+                     State) ->
+    Node = node_and_hostname(
+             [{Type,
+               RD} || #{domain := RDomain,
+                          type := Type,
+                          data := RD} <- Resources, RDomain == Data]),
+    mdns:notify(advertisement, #{node => Node, ttl => 0}),
+    handle_advertisement(Answers, Resources, ServiceDomain, State);
 
-        {TypeDomain, {TypeDomain, ptr, in}, 0} ->
-            Node = node_and_hostname(
-                     [{type(Resource),
-                       data(Resource)} || Resource <- Resources,
-                                          domain(Resource) =:= data(Answer)]),
-            handle_advertisement(Answers,
-                                 Resources,
-                                 State#{
-                                   discovered := lists:delete(
-                                                   Node, Discovered)});
+handle_advertisement([#{domain := ServiceDomain,
+                        type := ptr,
+                        class := in,
+                        ttl := TTL,
+                        data := Data} | Answers],
+                     Resources,
+                     ServiceDomain,
+                     State) ->
+    Node = node_and_hostname(
+             [{Type,
+               RD} || #{domain := RDomain,
+                          type := Type,
+                          data := RD} <- Resources, RDomain == Data]),
+    mdns:notify(advertisement, #{node => Node, ttl => TTL}),
+    mdns_advertiser:multicast(),
+    handle_advertisement(Answers, Resources, ServiceDomain, State);
 
-        {TypeDomain, {TypeDomain, ptr, in}, TTL} when TTL > 0 ->
-            Node = node_and_hostname(
-                     [{type(Resource),
-                       data(Resource)} || Resource <- Resources,
-                                          domain(Resource) =:= data(Answer)]),
+handle_advertisement([_ | Answers], Resources, ServiceDomain, State) ->
+    handle_advertisement(Answers, Resources, ServiceDomain, State);
 
-            case lists:member(Node, Discovered) of
-                false when node() =/= Node ->
-                    mdns:notify(advertisement, Node),
-                    mdns_advertiser:advertise(),
-                    handle_advertisement(Answers,
-                                         Resources,
-                                         State#{
-                                           discovered := [Node | Discovered]});
-
-                _ ->
-                    handle_advertisement(Answers, Resources, State)
-            end;
-        _ ->
-            handle_advertisement(Answers, Resources, State)
-    end;
-handle_advertisement([], _, State) ->
+handle_advertisement([], _, _, State) ->
     State.
 
 
 node_and_hostname(P) ->
-    list_to_atom(
-      node_name(get_value(txt, P)) ++ "@" ++ host_name(get_value(txt, P))).
+    node_name(get_value(txt, P)) ++ "@" ++ host_name(get_value(txt, P)).
 
 node_name([[$n, $o, $d, $e, $= | Name] | _]) ->
     Name;
@@ -194,28 +207,6 @@ host_name([[$h, $o, $s, $t, $n, $a, $m, $e, $= | Hostname] | _]) ->
     Hostname;
 host_name([_ | T]) ->
     host_name(T).
-
-type_domain(#{type := Type, domain := Domain}) ->
-    Type ++ Domain.
-
-domain_type_class(Resource) ->
-    {domain(Resource), type(Resource), class(Resource)}.
-
-
-domain(Resource) ->
-    get_value(domain, Resource).
-
-type(Resource) ->
-    get_value(type, Resource).
-
-class(Resource) ->
-    get_value(class, Resource).
-
-data(Resource) ->
-    get_value(data, Resource).
-
-ttl(Resource) ->
-    get_value(ttl, Resource).
 
 get_value(Key, List) ->
     proplists:get_value(Key, List).
