@@ -158,7 +158,7 @@ instance(Node, Hostname, #{service := Service, domain := Domain}) ->
 handle_advertisement([#{domain := ServiceDomain,
                         type := ptr,
                         class := in,
-                        ttl := 0,
+                        ttl := TTL,
                         data := Data} | Answers],
                      Resources,
                      ServiceDomain,
@@ -168,29 +168,7 @@ handle_advertisement([#{domain := ServiceDomain,
                RD} || #{domain := RDomain,
                           type := Type,
                           data := RD} <- Resources, RDomain == Data]),
-    mdns:notify(advertisement, #{node => Node, ttl => 0}),
-    handle_advertisement(Answers, Resources, ServiceDomain, State);
-
-handle_advertisement([#{domain := ServiceDomain,
-                        type := ptr,
-                        class := in,
-                        ttl := TTL,
-                        data := Data} | Answers],
-                     Resources,
-                     ServiceDomain,
-                     State) ->
-    case node_and_hostname(
-           [{Type,
-             RD} || #{domain := RDomain,
-                      type := Type,
-                      data := RD} <- Resources, RDomain == Data]) of
-        Node when Node /= node() ->
-            mdns:notify(advertisement, #{node => Node, ttl => TTL}),
-            mdns_advertiser:multicast();
-
-        _ ->
-            nop
-    end,
+    mdns:notify(advertisement, #{node => Node, ttl => TTL}),
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
 handle_advertisement([_ | Answers], Resources, ServiceDomain, State) ->

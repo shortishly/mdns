@@ -38,11 +38,14 @@ init([]) ->
     mdns:subscribe(advertisement),
     {ok, #{discovered => []}}.
 
+
 handle_call(_, _, State) ->
     {stop, error, State}.
 
+
 handle_cast(stop, State) ->
     {stop, error, State}.
+
 
 handle_info({_, {mdns, advertisement}, #{node := Node}}, State) ->
     true = net_kernel:connect_node(Node),
