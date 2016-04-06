@@ -12,8 +12,9 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_manager).
+-module(mdns_manage).
 -behaviour(gen_server).
+
 
 -export([discovered/0]).
 -export([start_link/0]).
@@ -26,14 +27,18 @@
 -export([init/1]).
 -export([terminate/2]).
 
+
 start_link() ->
     gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+
 
 stop() ->
     gen_server:cast(?MODULE, stop).
 
+
 discovered() ->
     gen_server:call(?MODULE, discovered).
+
 
 init([]) ->
     mdns:subscribe(advertisement),

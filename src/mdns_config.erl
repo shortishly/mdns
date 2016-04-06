@@ -15,11 +15,20 @@
 -module(mdns_config).
 
 -export([address/1]).
+-export([can/1]).
 -export([domain/0]).
+-export([environment/0]).
 -export([port/1]).
 -export([service/0]).
 -export([ttl/0]).
 
+
+can(advertise) ->
+    envy:to_boolean(mdns, can_advertise, default(true));
+can(discover) ->
+    envy:to_boolean(mdns, can_discover, default(true));
+can(mesh) ->
+    envy:to_boolean(mdns, can_mesh, default(false)).
 
 port(udp) ->
     envy:to_integer(mdns, udp_port, default(5353)).
@@ -33,6 +42,9 @@ address(multicast) ->
         {error, _} ->
             error(badarg, [Address])
     end.
+
+environment() ->
+    envy:to_list(mdns, environment, default("dev")).
 
 domain() ->
     envy:to_list(mdns, domain, default(".local")).

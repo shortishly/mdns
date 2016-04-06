@@ -12,8 +12,9 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_node_mesh).
+-module(mdns_mesh).
 -behaviour(gen_server).
+
 
 -export([start_link/0]).
 -export([stop/0]).
@@ -34,9 +35,8 @@ stop() ->
 
 
 init([]) ->
-    ok = net_kernel:monitor_nodes(true),
     mdns:subscribe(advertisement),
-    {ok, #{discovered => []}}.
+    {ok, #{env => mdns_config:environment()}}.
 
 
 handle_call(_, _, State) ->
@@ -44,20 +44,28 @@ handle_call(_, _, State) ->
 
 
 handle_cast(stop, State) ->
-    {stop, error, State}.
+    {stop, normal, State}.
 
 
-handle_info({_, {mdns, advertisement}, #{node := Node}}, State) ->
-    true = net_kernel:connect_node(Node),
+handle_info({_, {mdns, advertisement}, #{ttl := 0}}, State) ->
+    %% TTL of zero is a node saying goodbye, no mechanism in OTP to
+    %% disconnect from a node?
     {noreply, State};
-handle_info({nodeup, _}, State) ->
-    {noreply, State};
-handle_info({nodedown, Node}, #{discovered := Discovered} = State) ->
-    {noreply, State#{discovered := lists:delete(Node, Discovered)}}.
 
+handle_info({_, {mdns, advertisement}, #{env := Env, node := Node,
+                                         host := Host}},
+            #{env := Env} = State) ->
+    %% mesh with any node in that shares our enviromment
+    net_kernel:connect_node(any:to_atom(Node ++ "@" ++ Host)),
+    {noreply, State};
+
+handle_info({_, {mdns, advertisement}, _}, State) ->
+    %% ignore advertisements from any node that does not match our
+    %% environment
+    {noreply, State}.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 terminate(_, _) ->
-    net_kernel:monitor_nodes(false).
+    gproc:goodbye().

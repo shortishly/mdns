@@ -12,8 +12,9 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_discovery).
+-module(mdns_discover).
 -behaviour(gen_server).
+
 
 -export([start_link/0]).
 -export([stop/0]).
@@ -110,7 +111,7 @@ handle_record(_,
               [],
               ServiceDomain,
               State) ->
-    mdns_advertiser:multicast(),
+    mdns_advertise:multicast(),
     State;
 
 handle_record(_,
@@ -125,7 +126,7 @@ handle_record(_,
               State) ->
     case lists:member(Data, local_instances(State)) of
         true ->
-            mdns_advertiser:multicast(),
+            mdns_advertise:multicast(),
             State;
         _ ->
             State
@@ -147,13 +148,10 @@ handle_record(_, msg, false, query, _, _, _, _, _, State) ->
     State.
 
 
-local_instances(State) ->
+local_instances(#{service := Service, domain := Domain}) ->
     {ok, Names} = net_adm:names(),
     {ok, Hostname} = inet:gethostname(),
-    [instance(Node, Hostname, State) || {Node, _} <- Names].
-
-instance(Node, Hostname, #{service := Service, domain := Domain}) ->
-    Node ++ "@" ++ Hostname ++ "." ++ Service ++ Domain.
+    [mdns_sd:instance(Node, Hostname, Service, Domain) || {Node, _} <- Names].
 
 handle_advertisement([#{domain := ServiceDomain,
                         type := ptr,
@@ -163,12 +161,12 @@ handle_advertisement([#{domain := ServiceDomain,
                      Resources,
                      ServiceDomain,
                      State) ->
-    Node = node_and_hostname(
-             [{Type,
-               RD} || #{domain := RDomain,
-                          type := Type,
-                          data := RD} <- Resources, RDomain == Data]),
-    mdns:notify(advertisement, #{node => Node, ttl => TTL}),
+    Detail = maps:put(ttl, TTL, kvs([{Type,
+                                      RD} || #{domain := RDomain,
+                                               type := Type,
+                                               data := RD} <- Resources,
+                                             RDomain == Data])),
+    mdns:notify(advertisement, Detail),
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
 handle_advertisement([_ | Answers], Resources, ServiceDomain, State) ->
@@ -177,19 +175,19 @@ handle_advertisement([_ | Answers], Resources, ServiceDomain, State) ->
 handle_advertisement([], _, _, State) ->
     State.
 
-
-node_and_hostname(P) ->
-    node_name(get_value(txt, P)) ++ "@" ++ host_name(get_value(txt, P)).
-
-node_name([[$n, $o, $d, $e, $= | Name] | _]) ->
-    Name;
-node_name([_ | T]) ->
-    node_name(T).
-
-host_name([[$h, $o, $s, $t, $n, $a, $m, $e, $= | Hostname] | _]) ->
-    Hostname;
-host_name([_ | T]) ->
-    host_name(T).
+kvs(Resource) ->
+    lists:foldl(
+      fun
+          (KV, A) ->
+              case string:tokens(KV, "=") of
+                  ["port", Port] ->
+                      A#{port => any:to_integer(Port)};
+                  [K, V] ->
+                      A#{any:to_atom(K) => V}
+              end
+      end,
+      #{},
+      get_value(txt, Resource)).
 
 get_value(Key, List) ->
     proplists:get_value(Key, List).

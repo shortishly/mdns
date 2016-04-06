@@ -22,10 +22,22 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    Procs = [worker(mdns_manager),
-             worker(mdns_discovery),
-             worker(mdns_advertiser)],
+    Procs = manage() ++ discover() ++ advertise() ++ mesh(),
     {ok, {#{intensity => 5, period => 5}, Procs}}.
+
+
+manage() ->
+    [worker(mdns_manage) || mdns_config:can(discover)].
+
+discover() ->
+    [worker(mdns_discover) || mdns_config:can(discover)].
+
+advertise() ->
+    [worker(mdns_advertise) || mdns_config:can(advertise)].
+
+mesh() ->
+    [worker(mdns_mesh) || mdns_config:can(mesh)].
+
 
 worker(Module) ->
     worker(Module, transient).

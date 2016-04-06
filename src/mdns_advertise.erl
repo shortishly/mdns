@@ -12,8 +12,9 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_advertiser).
+-module(mdns_advertise).
 -behaviour(gen_server).
+
 
 -export([multicast/0]).
 -export([start_link/0]).
@@ -40,7 +41,10 @@ stop() ->
 init([]) ->
     case mdns_udp:open() of
         {ok, State} ->
-            {ok, State#{ttl => mdns_config:ttl()}, random_timeout(initial)};
+            {ok, State#{
+                   environment => mdns_config:environment(),
+                   ttl => mdns_config:ttl()},
+             random_timeout(initial)};
 
         {error, Reason} ->
             {stop, Reason}
@@ -78,6 +82,7 @@ terminate(_, #{socket := Socket} = State) ->
     announce(State#{ttl => 0}),
     gen_udp:close(Socket).
 
+
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
@@ -88,10 +93,12 @@ random_timeout(initial) ->
 random_timeout(announcements, TTL) ->
     crypto:rand_uniform(TTL * 500, TTL * 1000).
 
+
 announce(#{address := Address, port := Port, socket := Socket} = State) ->
     {ok, Names} = net_adm:names(),
     {ok, Hostname} = inet:gethostname(),
     gen_udp:send(Socket, Address, Port, message(Names, Hostname, State)).
+
 
 message(Names, Hostname, State) ->
     inet_dns:encode(
@@ -99,6 +106,7 @@ message(Names, Hostname, State) ->
         [{header, header()},
          {anlist, answers(Names, Hostname, State)},
          {arlist, resources(Names, Hostname, State)}])).
+
 
 header() ->
     inet_dns:make_header(
@@ -112,39 +120,49 @@ header() ->
        {pr, false},
        {rcode, 0}]).
 
+
 answers(Names,
         Hostname,
-        #{service := Service, domain := Domain, ttl := TTL} = State) ->
+        #{service := Service, domain := Domain, ttl := TTL}) ->
     [inet_dns:make_rr(
        [{type, ptr},
         {domain, Service ++ Domain},
         {class, in},
         {ttl, TTL},
-        {data, instance(Node, Hostname, State)}]) || {Node, _} <- Names].
+        {data, mdns_sd:instance(
+                 Node, Hostname, Service, Domain)}]) || {Node, _} <- Names].
+
 
 resources(Names, Hostname, State) ->
     services(Names, Hostname, State) ++ texts(Names, Hostname, State).
 
-services(Names, Hostname, #{domain := Domain, ttl := TTL} = State) ->
+
+services(Names, Hostname, #{service := Service, domain := Domain,
+                            ttl := TTL}) ->
     [inet_dns:make_rr(
-       [{domain, instance(Node, Hostname, State)},
+       [{domain, mdns_sd:instance(Node, Hostname, Service, Domain)},
         {type, srv},
         {class, in},
         {ttl, TTL},
         {data, {0, 0, Port, Hostname ++ Domain}}]) || {Node, Port} <- Names].
 
-texts(Names, Hostname, #{ttl := TTL} = State) ->
+
+texts(Names, Hostname, #{service := Service,
+                         domain := Domain,
+                         ttl := TTL,
+                         environment := Environment}) ->
     [inet_dns:make_rr(
-       [{domain, instance(Node, Hostname, State)},
+       [{domain, mdns_sd:instance(Node, Hostname, Service, Domain)},
         {type, txt},
         {class, in},
         {ttl, TTL},
-        {data, [kv("node", Node),
-                kv("hostname", net_adm:localhost()),
-                kv("port", Port)]}]) || {Node, Port} <- Names].
+        {data, kvs(Node, Port, Environment)}]) || {Node, Port} <- Names].
+
+kvs(Node, Port, Environment) ->
+    [kv("node", Node),
+     kv("host", net_adm:localhost()),
+     kv("env", Environment),
+     kv("port", Port)].
 
 kv(Key, Value) when length(Key) =< 9 ->
     Key ++ "=" ++ any:to_list(Value).
-
-instance(Node, Hostname, #{service := Service, domain := Domain}) ->
-    Node ++ "@" ++ Hostname ++ "." ++ Service ++ Domain.
