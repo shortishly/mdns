@@ -9,3 +9,4 @@ ebin/*.app
 .erlang.mk
 *.d
 xrefr
+\#*\#

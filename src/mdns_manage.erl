@@ -53,8 +53,15 @@ handle_cast(stop, State) ->
     {stop, normal, State}.
 
 
-handle_info({_, {mdns, advertisement}, #{node := Node, ttl := TTL}}, State) ->
-    {noreply, advertisement(Node, TTL, State)};
+handle_info({_, {mdns, advertisement}, #{node := Node,
+                                         host := Host,
+                                         env := Env,
+                                         ttl := TTL}}, State) ->
+    {noreply,
+     advertisement(
+       #{node => Node, host => Host, env => Env},
+       TTL,
+       State)};
 
 handle_info({timeout, Node}, #{discovered := Discovered,
                                cancelled := Cancelled} = State) ->

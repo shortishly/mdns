@@ -24,6 +24,7 @@ SHELL_OPTS = \
 	-boot start_sasl \
 	-config dev.config \
 	-s $(PROJECT) \
+	-setcookie $(PROJECT) \
 	-name $(PROJECT) \
 	-s sync \
 	-s rb
