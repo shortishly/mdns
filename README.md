@@ -10,7 +10,8 @@ The implementation uses the method described in
 [DNS-Based Service Discovery](http://www.ietf.org/rfc/rfc6763.txt) to
 register and discover services.
 
-A service of type **_erlang._tcp** will be advertised by default.
+A service of type **_erlang._tcp** will be advertised by default. The
+registered services can be viewed using `avahi-browse` as follows:
 
 ```shell
 avahi-browse _erlang._tcp
