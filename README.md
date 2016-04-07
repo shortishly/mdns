@@ -1,15 +1,14 @@
 # Multicast DNS
 
-MDNS is an implementation of the
-[MDNS](http://files.multicastdns.org/draft-cheshire-dnsext-multicastdns.txt)
-discovery protocol written in
-[Erlang/OTP](http://www.erlang.org/). The current implementation is
-sufficient for two or more Erlang nodes to self discover and form a
+mDNS is an implementation of the
+[mDNS](http://files.multicastdns.org/draft-cheshire-dnsext-multicastdns.txt)
+discovery protocol written in [Erlang/OTP](http://www.erlang.org/) and
+enables two or more Erlang nodes to self discover and form a mesh
 network.
 
 The implementation uses the method described in
 [DNS-Based Service Discovery](http://www.ietf.org/rfc/rfc6763.txt) to
-register and discover nodes.
+register and discover services.
 
 A service of type **_erlang._tcp** will be advertised by default.
 
@@ -17,15 +16,15 @@ A service of type **_erlang._tcp** will be advertised by default.
 avahi-browse _erlang._tcp
 ```
 
-MDNS will automatically advertise its presence will discover other
-**_erlang._tcp** nodes. Whether a node will advertise or discovery
+mDNS will automatically advertise its presence and discover other
+**_erlang._tcp** nodes. Whether a node will advertise or discover
 other nodes is controlled by the `MDNS_CAN_ADVERTISE` and
-`MDNS_CAN_DISCOVER` boolean enviroment variables.
+`MDNS_CAN_DISCOVER` boolean environment variables.
 
-MDNS will also automatically form an Erlang/OTP mesh network of nodes
-if the boolean variable `MDNS_CAN_MESH` is true, providing the nodes
-all share the same `MDNS_ENVIRONMENT` (default: "dev") and have the
-same distribution cookie.
+mDNS will also automatically form an Erlang/OTP mesh network of nodes
+if the boolean variable `MDNS_CAN_MESH` is true, providing they all
+share the same `MDNS_ENVIRONMENT` (default: "dev") and have the same
+distribution cookie.
 
 The following variables are used to control the operation of mDNS:
 
@@ -42,9 +41,9 @@ The following variables are used to control the operation of mDNS:
 |ttl               |MDNS\_TTL              |120           |
 
 
-MDNS uses [gproc](https://github.com/uwiger/gproc)'s
+mDNS uses [gproc](https://github.com/uwiger/gproc)'s
 [pub/sub](https://github.com/uwiger/gproc#use-case-pubsub-patterns)
-pattern. Consumers can subsribe to MDNS advertisements via
+pattern. Consumers can subscribe to mDNS advertisements via
 `mdns:subscribe(advertisement)`. The map accompanying the
 advertisement has the following structure:
 
