@@ -1,4 +1,3 @@
-%% -*- mode: erlang -*-
 %% Copyright (c) 2012-2016 Peter Morgan <peter.james.morgan@gmail.com>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,16 +12,14 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
-[
- {kernel, [
-           {error_logger, {file, "log/kernel.log"}}
-          ]},
+-module(mdns_app).
+-behaviour(application).
 
- {sasl, [
-          {sasl_error_logger, {file, "log/sasl.log"}},
-          {error_logger_mf_dir,"log"},
-          {error_logger_mf_maxbytes,10485760},
-          {error_logger_mf_maxfiles, 10},
-          {errlog_type, all}
-        ]}
-].
+-export([start/2]).
+-export([stop/1]).
+
+start(_StartType, _StartArgs) ->
+    mdns_sup:start_link().
+
+stop(_State) ->
+    ok.

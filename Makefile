@@ -1,37 +1,37 @@
-REBAR = rebar
-DIALYZER = dialyzer
-RM = rm
+#-*- mode: makefile-gmake -*-
+# Copyright (c) 2012-2016 Peter Morgan <peter.james.morgan@gmail.com>
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+PROJECT = mdns
+PROJECT_DESCRIPTION = Multicast DNS
+PROJECT_VERSION = 0.1.0
 
-.PHONY: all clean deps compile test ct build-plt dialyze update
+DEPS = \
+	envy
 
-all:	clean compile ct
+SHELL_OPTS = \
+	-boot start_sasl \
+	-config dev.config \
+	-s $(PROJECT) \
+	-setcookie $(PROJECT) \
+	-name $(PROJECT) \
+	-s sync \
+	-s rb
 
-clean:
-	@$(REBAR) clean
+SHELL_DEPS = \
+	sync
 
-squeaky: clean
-	@$(REBAR) delete-deps
+dep_envy = git https://github.com/shortishly/envy.git master
 
-deps:
-	@$(REBAR) get-deps
-
-compile:
-	@$(REBAR) compile
-
-test:
-	@$(REBAR) skip_deps=true eunit
-
-ct:
-	@$(REBAR) ct skip_deps=true
-
-update:
-	@$(REBAR) update-deps
-
-
-build-plt:
-	@$(DIALYZER) --build_plt --output_plt .gm_dialyzer.plt \
-		--apps kernel stdlib sasl inets crypto public_key ssl
-
-dialyze:
-	@$(DIALYZER) --src src --plt .gm_dialyzer.plt -Werror_handling \
-		-Wrace_conditions -Wunmatched_returns -Wunderspecs -Wno_behaviours
+include erlang.mk
