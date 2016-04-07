@@ -26,6 +26,35 @@ if the boolean variable `MDNS_CAN_MESH` is true, providing they all
 share the same `MDNS_ENVIRONMENT` (default: "dev") and have the same
 distribution cookie.
 
+For example, starting mDNS on two separate machines (in this example
+`dev001.local` and `dev002.local`) reachable on the same local
+network:
+
+On `dev001.local`:
+
+```shell
+MDNS_CAN_MESH=true make shell
+```
+
+and on `dev002.local`:
+
+```shell
+MDNS_CAN_MESH=true make shell
+```
+
+After a short period both machines will have automatically formed a
+mesh network:
+
+```shell
+(mdns@dev001.local)2> nodes().
+['mdns@dev002.local']
+```
+
+```shell
+(mdns@dev002.local)2> nodes().
+['mdns@dev001.local']
+```
+
 The following variables are used to control the operation of mDNS:
 
 |application name  |environment variable   |default       |
