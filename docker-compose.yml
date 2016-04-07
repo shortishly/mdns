@@ -1,0 +1,9 @@
+mdns:
+  build: .
+  volumes:
+    - ".:/code"
+  environment:
+    PORT: 5353
+    ADDRESS: 224.0.0.251
+    DOMAIN: .local
+    TYPE: _erlang._tcp

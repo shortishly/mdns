@@ -1,4 +1,3 @@
-%% -*- mode: erlang -*-
 %% Copyright (c) 2012-2016 Peter Morgan <peter.james.morgan@gmail.com>
 %%
 %% Licensed under the Apache License, Version 2.0 (the "License");
@@ -13,16 +12,8 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
-[
- {kernel, [
-           {error_logger, {file, "log/kernel.log"}}
-          ]},
+-module(mdns_sd).
+-export([instance/4]).
 
- {sasl, [
-          {sasl_error_logger, {file, "log/sasl.log"}},
-          {error_logger_mf_dir,"log"},
-          {error_logger_mf_maxbytes,10485760},
-          {error_logger_mf_maxfiles, 10},
-          {errlog_type, all}
-        ]}
-].
+instance(Node, Hostname, Service, Domain) ->
+    Node ++ "@" ++ Hostname ++ "." ++ Service ++ Domain.
