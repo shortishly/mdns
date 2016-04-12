@@ -42,9 +42,8 @@ open(Activity, Port) ->
     end.
 
 
-options(advertise, Address) ->
-    [binary,
-     {add_membership, {Address, {0,0,0,0}}}];
+options(advertise, _Address) ->
+    [binary];
 
 options(discover, Address) ->
     [{mode, binary},
