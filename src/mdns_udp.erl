@@ -14,20 +14,23 @@
 
 -module(mdns_udp).
 
--export([open/0]).
+-export([open/1]).
 
-open() ->
+open(discover) ->
+    open(discover, mdns_config:port(udp));
+open(advertise) ->
+    open(advertise, 0).
+
+open(Activity, Port) ->
     try
         Address = mdns_config:address(multicast),
-        Port = mdns_config:port(udp),
 
-        case gen_udp:open(Port, options(Address)) of
+        case gen_udp:open(Port, options(Activity, Address)) of
             {ok, Socket} ->
                 Domain = mdns_config:domain(),
                 Service = mdns_config:service(),
                 {ok, #{address => Address,
                        domain => Domain,
-                       port => Port,
                        service => Service,
                        socket => Socket}};
 
@@ -38,7 +41,12 @@ open() ->
             {error, Reason}
     end.
 
-options(Address) ->
+
+options(advertise, Address) ->
+    [binary,
+     {add_membership, {Address, {0,0,0,0}}}];
+
+options(discover, Address) ->
     [{mode, binary},
      {reuseaddr, true},
      {ip, Address},
