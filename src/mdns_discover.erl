@@ -16,14 +16,13 @@
 -behaviour(gen_server).
 
 
--export([start_link/0]).
--export([stop/0]).
-
 -export([code_change/3]).
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
 -export([init/1]).
+-export([start_link/0]).
+-export([stop/0]).
 -export([terminate/2]).
 
 start_link() ->
@@ -178,12 +177,25 @@ handle_advertisement([], _, _, State) ->
 kvs(Resource) ->
     lists:foldl(
       fun
-          (KV, A) ->
+          (KV, KVS) ->
               case string:tokens(KV, "=") of
                   ["port", Port] ->
-                      A#{port => any:to_integer(Port)};
+                      KVS#{port => any:to_integer(Port)};
+
+                  ["apps", Applications] ->
+                      KVS#{apps => lists:foldl(
+                                     fun
+                                         (Application, Apps) ->
+                                             [any:to_atom(Application) | Apps]
+                                     end,
+                                     [],
+                                     string:tokens(Applications, ","))};
+
                   [K, V] ->
-                      A#{any:to_atom(K) => V}
+                      KVS#{any:to_atom(K) => V};
+
+                  [_K] ->
+                      KVS
               end
       end,
       #{},
