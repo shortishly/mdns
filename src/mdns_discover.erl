@@ -192,7 +192,10 @@ kvs(Resource) ->
                                      string:tokens(Applications, ","))};
 
                   [K, V] ->
-                      KVS#{any:to_atom(K) => V}
+                      KVS#{any:to_atom(K) => V};
+
+                  [_K] ->
+                      KVS
               end
       end,
       #{},
