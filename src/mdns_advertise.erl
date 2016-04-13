@@ -16,14 +16,14 @@
 -behaviour(gen_server).
 
 
--export([multicast/0]).
--export([start_link/0]).
-
+-export([apps/0]).
 -export([code_change/3]).
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
 -export([init/1]).
+-export([multicast/0]).
+-export([start_link/0]).
 -export([stop/0]).
 -export([terminate/2]).
 
@@ -162,7 +162,38 @@ kvs(Node, Port, Environment) ->
     [kv("node", Node),
      kv("host", net_adm:localhost()),
      kv("env", Environment),
+     kv("vsn", mdns:vsn()),
+     kv("apps", apps()),
      kv("port", Port)].
 
 kv(Key, Value) when length(Key) =< 9 ->
     Key ++ "=" ++ any:to_list(Value).
+
+
+apps() ->
+    apps(mdns_config:advertise(blacklist)).
+
+apps(Blacklist) ->
+    lists:foldl(
+      fun
+          ({Application, _, _}, [] = A) ->
+              case ordsets:is_element(Application, Blacklist) of
+                  true ->
+                      A;
+
+                  false ->
+                      any:to_list(Application)
+              end;
+
+          ({Application, _, _}, A) ->
+              case ordsets:is_element(Application, Blacklist) of
+                  true ->
+                      A;
+                  false ->
+                      %% comma separated list of applications that are
+                      %% not blacklisted
+                      A ++ "," ++ any:to_list(Application)
+              end
+      end,
+      [],
+      application:which_applications()).

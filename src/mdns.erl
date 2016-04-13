@@ -18,6 +18,7 @@
 -export([notify/2]).
 -export([start/0]).
 -export([subscribe/1]).
+-export([vsn/0]).
 
 start() ->
     application:ensure_all_started(?MODULE).
@@ -31,3 +32,7 @@ notify(EventType, Msg) ->
 
 make() ->
     make:all([load]).
+
+vsn() ->
+    {ok, VSN} = application:get_key(?MODULE, vsn),
+    VSN.
