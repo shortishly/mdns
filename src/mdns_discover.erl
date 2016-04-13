@@ -34,7 +34,7 @@ stop() ->
 
 
 init([]) ->
-    case mdns_udp:open() of
+    case mdns_udp:open(discover) of
         {ok, State} ->
             {ok, State};
 

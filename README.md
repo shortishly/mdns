@@ -17,6 +17,12 @@ registered services can be viewed using `avahi-browse` as follows:
 avahi-browse _erlang._tcp
 ```
 
+Or on OSX:
+
+```shell
+dns-sd -B _erlang._tcp
+```
+
 mDNS will automatically advertise its presence and discover other
 **_erlang._tcp** nodes. Whether a node will advertise or discover
 other nodes is controlled by the `MDNS_CAN_ADVERTISE` and

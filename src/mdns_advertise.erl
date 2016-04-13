@@ -39,7 +39,7 @@ stop() ->
 
 
 init([]) ->
-    case mdns_udp:open() of
+    case mdns_udp:open(advertise) of
         {ok, State} ->
             {ok, State#{
                    environment => mdns_config:environment(),
@@ -94,10 +94,10 @@ random_timeout(announcements, TTL) ->
     crypto:rand_uniform(TTL * 500, TTL * 1000).
 
 
-announce(#{address := Address, port := Port, socket := Socket} = State) ->
+announce(#{address := Address, socket := Socket} = State) ->
     {ok, Names} = net_adm:names(),
     {ok, Hostname} = inet:gethostname(),
-    gen_udp:send(Socket, Address, Port, message(Names, Hostname, State)).
+    gen_udp:send(Socket, Address, mdns_config:port(udp), message(Names, Hostname, State)).
 
 
 message(Names, Hostname, State) ->
