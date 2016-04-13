@@ -178,12 +178,22 @@ handle_advertisement([], _, _, State) ->
 kvs(Resource) ->
     lists:foldl(
       fun
-          (KV, A) ->
+          (KV, KVS) ->
               case string:tokens(KV, "=") of
                   ["port", Port] ->
-                      A#{port => any:to_integer(Port)};
+                      KVS#{port => any:to_integer(Port)};
+
+                  ["apps", Applications] ->
+                      KVS#{apps => lists:foldl(
+                                     fun
+                                         (Application, Apps) ->
+                                             [Apps | any:to_atom(Application)]
+                                     end,
+                                     [],
+                                     string:tokens(Applications, ","))};
+
                   [K, V] ->
-                      A#{any:to_atom(K) => V}
+                      KVS#{any:to_atom(K) => V}
               end
       end,
       #{},
