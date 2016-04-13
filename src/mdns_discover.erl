@@ -187,7 +187,7 @@ kvs(Resource) ->
                       KVS#{apps => lists:foldl(
                                      fun
                                          (Application, Apps) ->
-                                             [Apps | any:to_atom(Application)]
+                                             [any:to_atom(Application) | Apps]
                                      end,
                                      [],
                                      string:tokens(Applications, ","))};
