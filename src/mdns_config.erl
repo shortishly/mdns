@@ -14,7 +14,9 @@
 
 -module(mdns_config).
 
+
 -export([address/1]).
+-export([advertise/1]).
 -export([can/1]).
 -export([domain/0]).
 -export([environment/0]).
@@ -54,6 +56,64 @@ service() ->
 
 ttl() ->
     envy:to_integer(mdns, ttl, default(120)).
+
+
+advertise(blacklist) ->
+    lists:foldl(
+      fun
+          (Application, A) ->
+              ordsets:add_element(any:to_atom(Application), A)
+      end,
+      ordsets:new(),
+      string:tokens(envy:to_list(mdns, advertise_blacklist, default(blacklist())), ",")).
+
+blacklist() ->
+    lists:foldl(
+      fun
+          (Application, []) ->
+              any:to_list(Application);
+
+          (Application, A) ->
+              A ++ "," ++ any:to_list(Application)
+      end,
+      [],
+      blacklist(otp) ++ blacklist(utility)).
+
+blacklist(otp) ->
+    [compiler,
+     crypto,
+     eldap,
+     erl_interface,
+     gs,
+     inets,
+     jinterface,
+     kernel,
+     megaco,
+     mnesia,
+     os_mon,
+     otp_mibs,
+     public_key,
+     runtime_tools,
+     sasl,
+     snmp,
+     ssh,
+     ssl,
+     stdlib,
+     syntax_tools,
+     tools,
+     wx,
+     xmerl];
+
+blacklist(utility) ->
+    [any,
+     gproc,
+     envy,
+     mdns,
+     recon,
+     sync].
+    
+    
+
 
 default(Default) ->
     [os_env, app_env, {default, Default}].

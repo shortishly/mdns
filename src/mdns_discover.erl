@@ -16,14 +16,13 @@
 -behaviour(gen_server).
 
 
--export([start_link/0]).
--export([stop/0]).
-
 -export([code_change/3]).
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
 -export([init/1]).
+-export([start_link/0]).
+-export([stop/0]).
 -export([terminate/2]).
 
 start_link() ->
