@@ -17,6 +17,9 @@ PROJECT = mdns
 PROJECT_DESCRIPTION = Multicast DNS
 PROJECT_VERSION = 0.2.1
 
+LOCAL_DEPS = \
+	crypto
+
 DEPS = \
 	envy
 

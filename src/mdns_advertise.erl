@@ -171,9 +171,9 @@ kv(Key, Value) when length(Key) =< 9 ->
 
 
 apps() ->
-    apps(mdns_config:advertise(blacklist)).
+    apps(mdns_config:advertise(whitelist), mdns_config:advertise(blacklist)).
 
-apps(Blacklist) ->
+apps([], Blacklist) ->
     lists:foldl(
       fun
           ({Application, _, _}, [] = A) ->
@@ -196,4 +196,31 @@ apps(Blacklist) ->
               end
       end,
       [],
+      application:which_applications());
+
+apps(Whitelist, _) ->
+    lists:foldl(
+      fun
+          ({Application, _, _}, [] = A) ->
+              case ordsets:is_element(Application, Whitelist) of
+                  true ->
+                      any:to_list(Application);
+
+                  false ->
+                      A
+              end;
+
+          ({Application, _, _}, A) ->
+              case ordsets:is_element(Application, Whitelist) of
+                  true ->
+                      %% comma separated list of white listed
+                      %% applications
+                      A ++ "," ++ any:to_list(Application);
+
+                  false ->
+                      A
+              end
+      end,
+      [],
       application:which_applications()).
+

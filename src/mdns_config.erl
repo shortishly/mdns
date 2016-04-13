@@ -26,17 +26,17 @@
 
 
 can(advertise) ->
-    envy:to_boolean(mdns, can_advertise, default(true));
+    envy(to_boolean, can_advertise, true);
 can(discover) ->
-    envy:to_boolean(mdns, can_discover, default(true));
+    envy(to_boolean, can_discover, true);
 can(mesh) ->
-    envy:to_boolean(mdns, can_mesh, default(false)).
+    envy(to_boolean, can_mesh, false).
 
 port(udp) ->
-    envy:to_integer(mdns, udp_port, default(5353)).
+    envy(to_integer, udp_port, 5353).
 
 address(multicast) ->
-    Address = envy:to_list(mdns, multicast_address, default("224.0.0.251")),
+    Address = envy(to_list, multicast_address, "224.0.0.251"),
     case inet:parse_ipv4_address(Address) of
         {ok, V4} ->
             V4;
@@ -46,26 +46,35 @@ address(multicast) ->
     end.
 
 environment() ->
-    envy:to_list(mdns, environment, default("dev")).
+    envy(to_list, environment, "dev").
 
 domain() ->
-    envy:to_list(mdns, domain, default(".local")).
+    envy(to_list, domain, ".local").
 
 service() ->
-    envy:to_list(mdns, service, default("_erlang._tcp")).
+    envy(to_list, service, "_erlang._tcp").
 
 ttl() ->
-    envy:to_integer(mdns, ttl, default(120)).
+    envy(to_integer, ttl, 120).
 
-
+advertise(whitelist) ->
+      comma_separated(envy(to_list, advertise_whitelist, ""));
 advertise(blacklist) ->
+      comma_separated(envy(to_list, advertise_blacklist, blacklist())).
+
+comma_separated(String) ->
     lists:foldl(
       fun
           (Application, A) ->
               ordsets:add_element(any:to_atom(Application), A)
       end,
       ordsets:new(),
-      string:tokens(envy:to_list(mdns, advertise_blacklist, default(blacklist())), ",")).
+      string:tokens(String, ",")).
+
+
+envy(To, Name, Default) ->
+    envy:To(mdns, Name, default(Default)).
+
 
 blacklist() ->
     lists:foldl(
@@ -106,8 +115,13 @@ blacklist(otp) ->
 
 blacklist(utility) ->
     [any,
-     gproc,
+     cowboy,
+     cowlib,
+     crown,
      envy,
+     gproc,
+     gun,
+     jsx,
      mdns,
      recon,
      sync].
