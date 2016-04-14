@@ -67,13 +67,13 @@ handle_info({timeout, Node}, #{discovered := Discovered,
     case Discovered of
         #{Node := Timer} ->
             erlang:cancel_timer(Timer, [{async, true}, {info, true}]),
-            State#{
-              discovered => maps:remove(Node, Discovered),
-              cancelled => ordsets:add_element(Timer, Cancelled)
-             };
+            {noreply, State#{
+                        discovered => maps:remove(Node, Discovered),
+                        cancelled => ordsets:add_element(Timer, Cancelled)
+                       }};
 
         #{} ->
-            State
+            {noreply, State}
     end;
 
 handle_info({cancel_timer, Timer, _}, #{cancelled := Cancelled} = State) ->

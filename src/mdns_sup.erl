@@ -22,18 +22,25 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    Procs = manage() ++ discover() ++ advertise() ++ mesh(),
+    Advertiser = mdns_erlang_tcp_advertiser,
+    Procs = manage() ++ discover(Advertiser) ++ advertise(Advertiser) ++ mesh(),
     {ok, {#{intensity => 5, period => 5}, Procs}}.
 
 
 manage() ->
     [worker(mdns_manage) || mdns_config:can(discover)].
 
-discover() ->
-    [worker(mdns_discover) || mdns_config:can(discover)].
+discover(Advertiser) ->
+    [spec(mdns_discover, Advertiser) || mdns_config:can(discover)].
 
-advertise() ->
-    [worker(mdns_advertise) || mdns_config:can(advertise)].
+advertise(Advertiser) ->
+    [spec(mdns_advertise, Advertiser) || mdns_config:can(advertise)].
+
+spec(Module, Advertiser) ->
+    worker(id(Module, Advertiser), Module, transient, [Advertiser]).
+
+id(Module, Advertiser) ->
+    {Module, #{service => Advertiser:service(), domain => Advertiser:domain()}}.
 
 mesh() ->
     [worker(mdns_mesh) || mdns_config:can(mesh)].
