@@ -13,14 +13,10 @@
 %% limitations under the License.
 
 -module(mdns_erlang_tcp_advertiser).
+-behaviour(mdns_advertiser).
 
-
--export([domain/0]).
 -export([instances/0]).
 -export([service/0]).
-
-domain() ->
-    ".local".
 
 service() ->
     "_erlang._tcp".
@@ -30,7 +26,7 @@ instances() ->
     {ok, Names} = net_adm:names(),
     [#{hostname => Hostname,
        port => Port,
-       instance => instance(Name, Hostname, service(), domain()),
+       instance => instance(Name, Hostname),
        kvs => #{host => net_adm:localhost(),
                 env => mdns_config:environment(),
                 node => Name,
@@ -40,8 +36,8 @@ instances() ->
        weight => 321} || {Name, Port} <- Names].
 
 
-instance(Node, Hostname, Service, Domain) ->
-    Node ++ "@" ++ Hostname ++ "." ++ Service ++ Domain.
+instance(Node, Hostname) ->
+    Node ++ "@" ++ Hostname ++ "." ++ service() ++ mdns_config:domain().
 
 
 apps() ->

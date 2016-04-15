@@ -38,16 +38,14 @@ stop(Advertiser) ->
 
 
 ref(Advertiser) ->
-    {via, gproc, {n, l, #{module => ?MODULE,
-                          service => Advertiser:service(),
-                          domain => Advertiser:domain()}}}.
+    {via, gproc, {n, l, #{module => ?MODULE, service => Advertiser:service()}}}.
 
 init([Advertiser]) ->
     case mdns_udp:open(advertise) of
         {ok, State} ->
             {ok, State#{
                    advertiser => Advertiser,
-                   domain => Advertiser:domain(),
+                   domain => mdns_config:domain(),
                    service => Advertiser:service(),
                    environment => mdns_config:environment(),
                    ttl => mdns_config:ttl()},
@@ -147,9 +145,12 @@ services(Instances, #{domain := Domain, ttl := TTL}) ->
         {type, srv},
         {class, in},
         {ttl, TTL},
-        {data, {0, 0, Port, Hostname ++ Domain}}]) || #{instance := Instance,
-                                                        port := Port,
-                                                        hostname := Hostname} <- Instances].
+        {data, {Priority, Weight, Port, Hostname ++ Domain}}]) || #{
+                       instance := Instance,
+                       priority := Priority,
+                       weight := Weight,
+                       port := Port,
+                       hostname := Hostname} <- Instances].
 
 
 texts(Instances, #{ttl := TTL}) ->

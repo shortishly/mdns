@@ -34,11 +34,7 @@ stop(Advertiser) ->
 
 
 ref(Advertiser) ->
-    {via, gproc, {n, l, #{module => ?MODULE,
-                          service => Advertiser:service(),
-                          domain => Advertiser:domain()}}}.
-
-
+    {via, gproc, {n, l, #{module => ?MODULE, service => Advertiser:service()}}}.
 
 init([Advertiser]) ->
     case mdns_udp:open(discover) of
@@ -46,7 +42,7 @@ init([Advertiser]) ->
             {ok, State#{
                    advertiser => Advertiser,
                    service => Advertiser:service(),
-                   domain => Advertiser:domain()}};
+                   domain => mdns_config:domain()}};
 
         {error, Reason} ->
             {stop, Reason}

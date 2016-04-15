@@ -40,10 +40,10 @@ spec(Module, Advertiser) ->
     worker(id(Module, Advertiser), Module, transient, [Advertiser]).
 
 id(Module, Advertiser) ->
-    {Module, #{service => Advertiser:service(), domain => Advertiser:domain()}}.
+    {Module, #{service => Advertiser:service()}}.
 
 mesh() ->
-    [worker(mdns_mesh) || mdns_config:can(mesh)].
+    [worker(mdns_erlang_tcp_mesh) || mdns_config:can(mesh)].
 
 
 worker(Module) ->
