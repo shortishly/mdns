@@ -30,69 +30,10 @@ instances() ->
        kvs => #{host => net_adm:localhost(),
                 env => mdns_config:environment(),
                 node => Name,
-                apps => apps(),
                 vsn => mdns:vsn()},
-       priority => 123,
-       weight => 321} || {Name, Port} <- Names].
+       priority => 0,
+       weight => 0} || {Name, Port} <- Names].
 
 
 instance(Node, Hostname) ->
     Node ++ "@" ++ Hostname ++ "." ++ service() ++ mdns_config:domain().
-
-
-apps() ->
-    apps(mdns_config:advertise(whitelist), mdns_config:advertise(blacklist)).
-
-
-apps([], Blacklist) ->
-    lists:foldl(
-      fun
-          ({Application, _, _}, [] = A) ->
-              case ordsets:is_element(Application, Blacklist) of
-                  true ->
-                      A;
-
-                  false ->
-                      any:to_list(Application)
-              end;
-
-          ({Application, _, _}, A) ->
-              case ordsets:is_element(Application, Blacklist) of
-                  true ->
-                      A;
-                  false ->
-                      %% comma separated list of applications that are
-                      %% not blacklisted
-                      A ++ "," ++ any:to_list(Application)
-              end
-      end,
-      [],
-      application:which_applications());
-
-apps(Whitelist, _) ->
-    lists:foldl(
-      fun
-          ({Application, _, _}, [] = A) ->
-              case ordsets:is_element(Application, Whitelist) of
-                  true ->
-                      any:to_list(Application);
-
-                  false ->
-                      A
-              end;
-
-          ({Application, _, _}, A) ->
-              case ordsets:is_element(Application, Whitelist) of
-                  true ->
-                      %% comma separated list of white listed
-                      %% applications
-                      A ++ "," ++ any:to_list(Application);
-
-                  false ->
-                      A
-              end
-      end,
-      [],
-      application:which_applications()).
-
-
