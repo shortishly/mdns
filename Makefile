@@ -15,7 +15,10 @@
 #
 PROJECT = mdns
 PROJECT_DESCRIPTION = Multicast DNS
-PROJECT_VERSION = 0.2.1
+PROJECT_VERSION = 0.3.0
+
+LOCAL_DEPS = \
+	crypto
 
 DEPS = \
 	envy
@@ -23,13 +26,14 @@ DEPS = \
 SHELL_OPTS = \
 	-boot start_sasl \
 	-config dev.config \
-	-s $(PROJECT) \
-	-setcookie $(PROJECT) \
 	-name $(PROJECT) \
+	-s $(PROJECT) \
+	-s rb \
 	-s sync \
-	-s rb
+	-setcookie $(PROJECT)
 
 SHELL_DEPS = \
+	recon \
 	sync
 
 dep_envy = git https://github.com/shortishly/envy.git master

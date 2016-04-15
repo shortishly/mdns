@@ -12,7 +12,7 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_mesh).
+-module(mdns_erlang_tcp_mesh).
 -behaviour(gen_server).
 
 
@@ -46,12 +46,14 @@ handle_cast(stop, State) ->
     {stop, normal, State}.
 
 
-handle_info({_, {mdns, advertisement}, #{ttl := 0}}, State) ->
+handle_info({_, {mdns, advertisement}, #{advertiser := mdns_erlang_tcp_advertiser,
+                                         ttl := 0}}, State) ->
     %% TTL of zero is a node saying goodbye, no mechanism in OTP to
     %% disconnect from a node?
     {noreply, State};
 
-handle_info({_, {mdns, advertisement}, #{env := Env, node := Node,
+handle_info({_, {mdns, advertisement}, #{advertiser := mdns_erlang_tcp_advertiser,
+                                         env := Env, node := Node,
                                          host := Host}},
             #{env := Env} = State) ->
     %% mesh with any node in that shares our enviromment

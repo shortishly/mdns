@@ -16,32 +16,37 @@
 -behaviour(gen_server).
 
 
--export([apps/0]).
 -export([code_change/3]).
 -export([handle_call/3]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
 -export([init/1]).
--export([multicast/0]).
--export([start_link/0]).
--export([stop/0]).
+-export([multicast/1]).
+-export([start_link/1]).
+-export([stop/1]).
 -export([terminate/2]).
 
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
+start_link(Advertiser) ->
+    gen_server:start_link(ref(Advertiser), ?MODULE, [Advertiser], []).
 
-multicast() ->
-    gen_server:cast(?MODULE, multicast).
+multicast(Advertiser) ->
+    gen_server:cast(ref(Advertiser), multicast).
 
-stop() ->
-    gen_server:cast(?MODULE, stop).
+stop(Advertiser) ->
+    gen_server:cast(ref(Advertiser), stop).
 
 
-init([]) ->
+ref(Advertiser) ->
+    {via, gproc, {n, l, #{module => ?MODULE, service => Advertiser:service()}}}.
+
+init([Advertiser]) ->
     case mdns_udp:open(advertise) of
         {ok, State} ->
             {ok, State#{
+                   advertiser => Advertiser,
+                   domain => mdns_config:domain(),
+                   service => Advertiser:service(),
                    environment => mdns_config:environment(),
                    ttl => mdns_config:ttl()},
              random_timeout(initial)};
@@ -94,19 +99,19 @@ random_timeout(announcements, TTL) ->
     crypto:rand_uniform(TTL * 500, TTL * 1000).
 
 
-announce(#{address := Address, socket := Socket} = State) ->
-    {ok, Names} = net_adm:names(),
-    {ok, Hostname} = inet:gethostname(),
-    gen_udp:send(Socket, Address, mdns_config:port(udp), message(Names, Hostname, State)).
-
-
-message(Names, Hostname, State) ->
-    inet_dns:encode(
-      inet_dns:make_msg(
-        [{header, header()},
-         {anlist, answers(Names, Hostname, State)},
-         {arlist, resources(Names, Hostname, State)}])).
-
+announce(#{address := Address,
+           advertiser := Advertiser,
+           socket := Socket} = State) ->
+    Instances = Advertiser:instances(),
+    gen_udp:send(
+      Socket,
+      Address,
+      mdns_config:port(udp),
+      inet_dns:encode(
+        inet_dns:make_msg(
+          [{header, header()},
+           {anlist, answers(Instances, State)},
+           {arlist, resources(Instances, State)}]))).
 
 header() ->
     inet_dns:make_header(
@@ -121,79 +126,51 @@ header() ->
        {rcode, 0}]).
 
 
-answers(Names,
-        Hostname,
-        #{service := Service, domain := Domain, ttl := TTL}) ->
+answers(Instances, #{domain := Domain, service := Service, ttl := TTL}) ->
     [inet_dns:make_rr(
        [{type, ptr},
         {domain, Service ++ Domain},
         {class, in},
         {ttl, TTL},
-        {data, mdns_sd:instance(
-                 Node, Hostname, Service, Domain)}]) || {Node, _} <- Names].
+        {data, Instance}]) || #{instance := Instance} <- Instances].
 
 
-resources(Names, Hostname, State) ->
-    services(Names, Hostname, State) ++ texts(Names, Hostname, State).
+resources(Instances, State) ->
+    services(Instances, State) ++ texts(Instances, State).
 
 
-services(Names, Hostname, #{service := Service, domain := Domain,
-                            ttl := TTL}) ->
+services(Instances, #{domain := Domain, ttl := TTL}) ->
     [inet_dns:make_rr(
-       [{domain, mdns_sd:instance(Node, Hostname, Service, Domain)},
+       [{domain, Instance},
         {type, srv},
         {class, in},
         {ttl, TTL},
-        {data, {0, 0, Port, Hostname ++ Domain}}]) || {Node, Port} <- Names].
+        {data, {Priority, Weight, Port, Hostname ++ Domain}}]) || #{
+                       instance := Instance,
+                       priority := Priority,
+                       weight := Weight,
+                       port := Port,
+                       hostname := Hostname} <- Instances].
 
 
-texts(Names, Hostname, #{service := Service,
-                         domain := Domain,
-                         ttl := TTL,
-                         environment := Environment}) ->
+texts(Instances, #{ttl := TTL}) ->
     [inet_dns:make_rr(
-       [{domain, mdns_sd:instance(Node, Hostname, Service, Domain)},
+       [{domain, Instance},
         {type, txt},
         {class, in},
         {ttl, TTL},
-        {data, kvs(Node, Port, Environment)}]) || {Node, Port} <- Names].
+        {data, kvs(KVS)}]) || #{instance := Instance, properties := KVS} <- Instances].
 
-kvs(Node, Port, Environment) ->
-    [kv("node", Node),
-     kv("host", net_adm:localhost()),
-     kv("env", Environment),
-     kv("vsn", mdns:vsn()),
-     kv("apps", apps()),
-     kv("port", Port)].
-
-kv(Key, Value) when length(Key) =< 9 ->
-    Key ++ "=" ++ any:to_list(Value).
-
-
-apps() ->
-    apps(mdns_config:advertise(blacklist)).
-
-apps(Blacklist) ->
-    lists:foldl(
+kvs(KVS) ->
+    maps:fold(
       fun
-          ({Application, _, _}, [] = A) ->
-              case ordsets:is_element(Application, Blacklist) of
-                  true ->
-                      A;
-
-                  false ->
-                      any:to_list(Application)
-              end;
-
-          ({Application, _, _}, A) ->
-              case ordsets:is_element(Application, Blacklist) of
-                  true ->
-                      A;
-                  false ->
-                      %% comma separated list of applications that are
-                      %% not blacklisted
-                      A ++ "," ++ any:to_list(Application)
-              end
+          (Key, Value, A) ->
+              [kv(Key, Value) | A]
       end,
       [],
-      application:which_applications()).
+      KVS).
+
+kv(Key, Value) when is_list(Key) andalso length(Key) =< 9 ->
+    Key ++ "=" ++ any:to_list(Value);
+kv(Key, Value) when not(is_list(Key)) ->
+    kv(any:to_list(Key), Value).

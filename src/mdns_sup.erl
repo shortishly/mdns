@@ -17,27 +17,38 @@
 
 -export([init/1]).
 -export([start_link/0]).
+-export([worker/1]).
 
 start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-    Procs = manage() ++ discover() ++ advertise() ++ mesh(),
-    {ok, {#{intensity => 5, period => 5}, Procs}}.
+    Procs = [supervisor(mdns_discover_sup), supervisor(mdns_advertise_sup)] ++ manage() ++ mesh(),
+    {ok, {#{}, Procs}}.
 
 
 manage() ->
     [worker(mdns_manage) || mdns_config:can(discover)].
 
-discover() ->
-    [worker(mdns_discover) || mdns_config:can(discover)].
-
-advertise() ->
-    [worker(mdns_advertise) || mdns_config:can(advertise)].
-
 mesh() ->
-    [worker(mdns_mesh) || mdns_config:can(mesh)].
+    [worker(mdns_erlang_tcp_mesh) || mdns_config:can(mesh)].
 
+
+supervisor(Module) ->
+    supervisor(Module, permanent).
+
+supervisor(Module, Restart) ->
+    supervisor(Module, Restart, []).
+
+supervisor(Module, Restart, Parameters) ->
+    supervisor(Module, Module, Restart, Parameters).
+
+supervisor(Id, Module, Restart, Parameters) ->
+    #{id => Id,
+      start => {Module, start_link, Parameters},
+      restart => Restart,
+      type => supervisor,
+      shutdown => infinity}.
 
 worker(Module) ->
     worker(Module, transient).

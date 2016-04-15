@@ -12,20 +12,20 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_app).
--behaviour(application).
+-module(mdns_discover_sup).
+-behaviour(supervisor).
 
--export([start/2]).
--export([stop/1]).
+-export([init/1]).
+-export([start_child/1]).
+-export([start_link/0]).
 
-start(_StartType, _StartArgs) ->
-    {ok, Sup} = mdns_sup:start_link(),
-    start_advertiser(mdns_erlang_tcp_advertiser),
-    {ok, Sup}.
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
-start_advertiser(Advertiser) ->
-    [mdns_discover_sup:start_child(Advertiser) || mdns_config:can(discover)],
-    [mdns_advertise_sup:start_child(Advertiser) || mdns_config:can(advertise)].
 
-stop(_State) ->
-    ok.
+init([]) ->
+    {ok, {#{strategy => simple_one_for_one}, [mdns_sup:worker(mdns_discover)]}}.
+
+start_child(Advertiser) ->
+    supervisor:start_child(?MODULE, [Advertiser]).
+

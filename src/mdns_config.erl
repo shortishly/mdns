@@ -16,7 +16,6 @@
 
 
 -export([address/1]).
--export([advertise/1]).
 -export([can/1]).
 -export([domain/0]).
 -export([environment/0]).
@@ -26,17 +25,17 @@
 
 
 can(advertise) ->
-    envy:to_boolean(mdns, can_advertise, default(true));
+    envy(to_boolean, can_advertise, true);
 can(discover) ->
-    envy:to_boolean(mdns, can_discover, default(true));
+    envy(to_boolean, can_discover, true);
 can(mesh) ->
-    envy:to_boolean(mdns, can_mesh, default(false)).
+    envy(to_boolean, can_mesh, false).
 
 port(udp) ->
-    envy:to_integer(mdns, udp_port, default(5353)).
+    envy(to_integer, udp_port, 5353).
 
 address(multicast) ->
-    Address = envy:to_list(mdns, multicast_address, default("224.0.0.251")),
+    Address = envy(to_list, multicast_address, "224.0.0.251"),
     case inet:parse_ipv4_address(Address) of
         {ok, V4} ->
             V4;
@@ -46,74 +45,19 @@ address(multicast) ->
     end.
 
 environment() ->
-    envy:to_list(mdns, environment, default("dev")).
+    envy(to_list, environment, "dev").
 
 domain() ->
-    envy:to_list(mdns, domain, default(".local")).
+    envy(to_list, domain, ".local").
 
 service() ->
-    envy:to_list(mdns, service, default("_erlang._tcp")).
+    envy(to_list, service, "_erlang._tcp").
 
 ttl() ->
-    envy:to_integer(mdns, ttl, default(120)).
+    envy(to_integer, ttl, 120).
 
-
-advertise(blacklist) ->
-    lists:foldl(
-      fun
-          (Application, A) ->
-              ordsets:add_element(any:to_atom(Application), A)
-      end,
-      ordsets:new(),
-      string:tokens(envy:to_list(mdns, advertise_blacklist, default(blacklist())), ",")).
-
-blacklist() ->
-    lists:foldl(
-      fun
-          (Application, []) ->
-              any:to_list(Application);
-
-          (Application, A) ->
-              A ++ "," ++ any:to_list(Application)
-      end,
-      [],
-      blacklist(otp) ++ blacklist(utility)).
-
-blacklist(otp) ->
-    [compiler,
-     crypto,
-     eldap,
-     erl_interface,
-     gs,
-     inets,
-     jinterface,
-     kernel,
-     megaco,
-     mnesia,
-     os_mon,
-     otp_mibs,
-     public_key,
-     runtime_tools,
-     sasl,
-     snmp,
-     ssh,
-     ssl,
-     stdlib,
-     syntax_tools,
-     tools,
-     wx,
-     xmerl];
-
-blacklist(utility) ->
-    [any,
-     gproc,
-     envy,
-     mdns,
-     recon,
-     sync].
-    
-    
-
+envy(To, Name, Default) ->
+    envy:To(mdns, Name, default(Default)).
 
 default(Default) ->
     [os_env, app_env, {default, Default}].

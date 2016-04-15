@@ -12,8 +12,20 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_sd).
--export([instance/4]).
+-module(mdns_advertise_sup).
+-behaviour(supervisor).
 
-instance(Node, Hostname, Service, Domain) ->
-    Node ++ "@" ++ Hostname ++ "." ++ Service ++ Domain.
+-export([init/1]).
+-export([start_child/1]).
+-export([start_link/0]).
+
+start_link() ->
+    supervisor:start_link({local, ?MODULE}, ?MODULE, []).
+
+
+init([]) ->
+    {ok, {#{strategy => simple_one_for_one}, [mdns_sup:worker(mdns_advertise)]}}.
+
+start_child(Advertiser) ->
+    supervisor:start_child(?MODULE, [Advertiser]).
+

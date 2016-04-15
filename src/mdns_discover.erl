@@ -21,21 +21,28 @@
 -export([handle_cast/2]).
 -export([handle_info/2]).
 -export([init/1]).
--export([start_link/0]).
--export([stop/0]).
+-export([start_link/1]).
+-export([stop/1]).
 -export([terminate/2]).
 
-start_link() ->
-    gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
-stop() ->
-    gen_server:cast(?MODULE, stop).
+start_link(Advertiser) ->
+    gen_server:start_link(ref(Advertiser), ?MODULE, [Advertiser], []).
+
+stop(Advertiser) ->
+    gen_server:cast(ref(Advertiser), stop).
 
 
-init([]) ->
+ref(Advertiser) ->
+    {via, gproc, {n, l, #{module => ?MODULE, service => Advertiser:service()}}}.
+
+init([Advertiser]) ->
     case mdns_udp:open(discover) of
         {ok, State} ->
-            {ok, State};
+            {ok, State#{
+                   advertiser => Advertiser,
+                   service => Advertiser:service(),
+                   domain => mdns_config:domain()}};
 
         {error, Reason} ->
             {stop, Reason}
@@ -66,7 +73,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_packet(Packet, #{service := Service, domain := Domain} = State) ->
     {ok, Record} = inet_dns:decode(Packet),
     Header = header(Record),
-    handle_record(header(Record),
+    handle_record(Header,
                   record_type(Record),
                   get_value(qr, Header),
                   get_value(opcode, Header),
@@ -109,8 +116,8 @@ handle_record(_,
               [],
               [],
               ServiceDomain,
-              State) ->
-    mdns_advertise:multicast(),
+              #{advertiser := Advertiser} = State) ->
+    mdns_advertise:multicast(Advertiser),
     State;
 
 handle_record(_,
@@ -122,10 +129,10 @@ handle_record(_,
               [],
               [],
               ServiceDomain,
-              State) ->
+              #{advertiser := Advertiser} = State) ->
     case lists:member(Data, local_instances(State)) of
         true ->
-            mdns_advertise:multicast(),
+            mdns_advertise:multicast(Advertiser),
             State;
         _ ->
             State
@@ -143,14 +150,12 @@ handle_record(_,
               State) ->
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
-handle_record(_, msg, false, query, _, _, _, _, _, State) ->
+handle_record(_, msg, false, query, _Questions, _Answers, _Authorities, _Resources, _ServiceDomain, State) ->
     State.
 
 
-local_instances(#{service := Service, domain := Domain}) ->
-    {ok, Names} = net_adm:names(),
-    {ok, Hostname} = inet:gethostname(),
-    [mdns_sd:instance(Node, Hostname, Service, Domain) || {Node, _} <- Names].
+local_instances(#{advertiser := Advertiser}) ->
+    [Instance || #{instance := Instance} <- Advertiser:instances()].
 
 handle_advertisement([#{domain := ServiceDomain,
                         type := ptr,
@@ -159,38 +164,41 @@ handle_advertisement([#{domain := ServiceDomain,
                         data := Data} | Answers],
                      Resources,
                      ServiceDomain,
-                     State) ->
-    Detail = maps:put(ttl, TTL, kvs([{Type,
-                                      RD} || #{domain := RDomain,
-                                               type := Type,
-                                               data := RD} <- Resources,
-                                             RDomain == Data])),
+                     #{advertiser := Advertiser, service := Service} = State) ->
+
+    %% TXT resource record contains a list of KV pairs.
+    [KVS] = [RD || #{domain := RDomain,
+                     type := txt,
+                     data := RD} <- Resources,
+                   RDomain == Data],
+
+    %% SRV record has priority, weight, port and domain.
+    [{Priority, Weight, Port, _Domain}] = [RD || #{domain := RDomain,
+                                                   type := srv,
+                                                   data := RD} <- Resources,
+                                                 RDomain == Data],
+
+    Detail = (txt_kvs(KVS))#{priority => Priority,
+                             weight => Weight,
+                             port => Port,
+                             ttl => TTL,
+                             instance => Data,
+                             advertiser => Advertiser,
+                             service => Service},
     mdns:notify(advertisement, Detail),
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
-handle_advertisement([_ | Answers], Resources, ServiceDomain, State) ->
+handle_advertisement([_Answer | Answers], Resources, ServiceDomain, State) ->
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
 handle_advertisement([], _, _, State) ->
     State.
 
-kvs(Resource) ->
+txt_kvs(Data) ->
     lists:foldl(
       fun
           (KV, KVS) ->
               case string:tokens(KV, "=") of
-                  ["port", Port] ->
-                      KVS#{port => any:to_integer(Port)};
-
-                  ["apps", Applications] ->
-                      KVS#{apps => lists:foldl(
-                                     fun
-                                         (Application, Apps) ->
-                                             [any:to_atom(Application) | Apps]
-                                     end,
-                                     [],
-                                     string:tokens(Applications, ","))};
-
                   [K, V] ->
                       KVS#{any:to_atom(K) => V};
 
@@ -199,7 +207,7 @@ kvs(Resource) ->
               end
       end,
       #{},
-      get_value(txt, Resource)).
+      Data).
 
 get_value(Key, List) ->
     proplists:get_value(Key, List).

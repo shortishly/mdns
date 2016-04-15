@@ -12,20 +12,12 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_app).
--behaviour(application).
+-module(mdns_advertiser).
 
--export([start/2]).
--export([stop/1]).
-
-start(_StartType, _StartArgs) ->
-    {ok, Sup} = mdns_sup:start_link(),
-    start_advertiser(mdns_erlang_tcp_advertiser),
-    {ok, Sup}.
-
-start_advertiser(Advertiser) ->
-    [mdns_discover_sup:start_child(Advertiser) || mdns_config:can(discover)],
-    [mdns_advertise_sup:start_child(Advertiser) || mdns_config:can(advertise)].
-
-stop(_State) ->
-    ok.
+-callback service() -> Service::string().
+-callback instances() -> list(#{hostname => string(),
+                                port => integer(),
+                                instance => string(),
+                                priority => integer(),
+                                properties => map(),
+                                weight => integer()}).
