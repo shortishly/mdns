@@ -178,9 +178,9 @@ handle_advertisement([#{domain := ServiceDomain,
 
     %% SRV record has priority, weight, port and domain.
     [{Priority, Weight, Port, _Domain}] = [RD || #{domain := RDomain,
-                                                  type := srv,
-                                                  data := RD} <- Resources,
-                                                RDomain == Data],
+                                                   type := srv,
+                                                   data := RD} <- Resources,
+                                                 RDomain == Data],
 
     Detail = (txt_kvs(KVS))#{priority => Priority,
                              weight => Weight,
