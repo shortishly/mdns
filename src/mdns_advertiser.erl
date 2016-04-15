@@ -12,8 +12,12 @@
 %% See the License for the specific language governing permissions and
 %% limitations under the License.
 
--module(mdns_sd).
--export([instance/4]).
+-module(mdns_advertiser).
 
-instance(Node, Hostname, Service, Domain) ->
-    Node ++ "@" ++ Hostname ++ "." ++ Service ++ Domain.
+-callback service() -> Service::string().
+-callback instances() -> list(#{hostname => string(),
+                                port => integer(),
+                                instance => string(),
+                                priority => integer(),
+                                properties => map(),
+                                weight => integer()}).

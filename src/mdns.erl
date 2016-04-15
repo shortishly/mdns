@@ -18,6 +18,8 @@
 -export([notify/2]).
 -export([start/0]).
 -export([subscribe/1]).
+-export([trace/0]).
+-export([trace/1]).
 -export([vsn/0]).
 
 start() ->
@@ -36,3 +38,33 @@ make() ->
 vsn() ->
     {ok, VSN} = application:get_key(?MODULE, vsn),
     VSN.
+
+
+ensure_loaded() ->
+    lists:foreach(fun code:ensure_loaded/1, modules()).
+
+
+modules() ->
+    {ok, Modules} = application:get_key(?MODULE, modules),
+    Modules.
+
+
+trace() ->
+    trace(true).
+
+trace(true) ->
+    ensure_loaded(),
+    case recon_trace:calls([m(Module) || Module <- modules()],
+                           {1000, 500},
+                           [{scope, local},
+                            {pid, all}]) of
+        Matches when Matches > 0 ->
+            ok;
+        _ ->
+            error
+    end;
+trace(false) ->
+    recon_trace:clear().
+
+m(Module) ->
+    {Module, '_', '_'}.
