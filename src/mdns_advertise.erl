@@ -159,7 +159,7 @@ texts(Instances, #{ttl := TTL}) ->
         {type, txt},
         {class, in},
         {ttl, TTL},
-        {data, kvs(KVS)}]) || #{instance := Instance, kvs := KVS} <- Instances].
+        {data, kvs(KVS)}]) || #{instance := Instance, properties := KVS} <- Instances].
 
 kvs(KVS) ->
     maps:fold(

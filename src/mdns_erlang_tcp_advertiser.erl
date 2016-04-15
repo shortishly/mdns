@@ -27,10 +27,10 @@ instances() ->
     [#{hostname => Hostname,
        port => Port,
        instance => instance(Name, Hostname),
-       kvs => #{host => net_adm:localhost(),
-                env => mdns_config:environment(),
-                node => Name,
-                vsn => mdns:vsn()},
+       properties => #{host => net_adm:localhost(),
+                       env => mdns_config:environment(),
+                       node => Name,
+                       vsn => mdns:vsn()},
        priority => 0,
        weight => 0} || {Name, Port} <- Names].
 

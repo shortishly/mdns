@@ -19,5 +19,5 @@
                                 port => integer(),
                                 instance => string(),
                                 priority => integer(),
-                                kvs => map(),
+                                properties => map(),
                                 weight => integer()}).
