@@ -26,9 +26,6 @@ start(_StartType, _StartArgs) ->
 start_advertiser(Advertiser) ->
     [mdns_discover_sup:start_child(Advertiser) || mdns_config:can(discover)],
     [mdns_advertise_sup:start_child(Advertiser) || mdns_config:can(advertise)].
-    
-    
-    
 
 stop(_State) ->
     ok.

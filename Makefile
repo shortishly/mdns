@@ -26,11 +26,11 @@ DEPS = \
 SHELL_OPTS = \
 	-boot start_sasl \
 	-config dev.config \
-	-s $(PROJECT) \
-	-setcookie $(PROJECT) \
 	-name $(PROJECT) \
+	-s $(PROJECT) \
+	-s rb \
 	-s sync \
-	-s rb
+	-setcookie $(PROJECT)
 
 SHELL_DEPS = \
 	recon \
