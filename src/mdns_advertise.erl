@@ -47,6 +47,8 @@ init([Advertiser]) ->
         {ok, State} ->
             {ok, State#{
                    advertiser => Advertiser,
+                   domain => Advertiser:domain(),
+                   service => Advertiser:service(),
                    environment => mdns_config:environment(),
                    ttl => mdns_config:ttl()},
              random_timeout(initial)};
@@ -126,22 +128,20 @@ header() ->
        {rcode, 0}]).
 
 
-answers(Instances, #{ttl := TTL}) ->
+answers(Instances, #{domain := Domain, service := Service, ttl := TTL}) ->
     [inet_dns:make_rr(
        [{type, ptr},
         {domain, Service ++ Domain},
         {class, in},
         {ttl, TTL},
-        {data, Instance}]) || #{instance := Instance,
-                                service := Service,
-                                domain := Domain} <- Instances].
+        {data, Instance}]) || #{instance := Instance} <- Instances].
 
 
 resources(Instances, State) ->
     services(Instances, State) ++ texts(Instances, State).
 
 
-services(Instances, #{ttl := TTL}) ->
+services(Instances, #{domain := Domain, ttl := TTL}) ->
     [inet_dns:make_rr(
        [{domain, Instance},
         {type, srv},
@@ -149,8 +149,7 @@ services(Instances, #{ttl := TTL}) ->
         {ttl, TTL},
         {data, {0, 0, Port, Hostname ++ Domain}}]) || #{instance := Instance,
                                                         port := Port,
-                                                        hostname := Hostname,
-                                                        domain := Domain} <- Instances].
+                                                        hostname := Hostname} <- Instances].
 
 
 texts(Instances, #{ttl := TTL}) ->

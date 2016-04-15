@@ -77,7 +77,7 @@ code_change(_OldVsn, State, _Extra) ->
 handle_packet(Packet, #{service := Service, domain := Domain} = State) ->
     {ok, Record} = inet_dns:decode(Packet),
     Header = header(Record),
-    handle_record(header(Record),
+    handle_record(Header,
                   record_type(Record),
                   get_value(qr, Header),
                   get_value(opcode, Header),
@@ -154,15 +154,7 @@ handle_record(_,
               State) ->
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
-handle_record(_, msg, false, query, Questions, Answers, Authorities, Resources, ServiceDomain, State) ->
-    error_logger:info_report([{module, ?MODULE},
-                              {line, ?LINE},
-                              {questions, Questions},
-                              {answers, Answers},
-                              {authorities, Authorities},
-                              {resources, Resources},
-                              {service_domain, ServiceDomain},
-                              {state, State}]),
+handle_record(_, msg, false, query, _Questions, _Answers, _Authorities, _Resources, _ServiceDomain, State) ->
     State.
 
 
@@ -185,7 +177,7 @@ handle_advertisement([#{domain := ServiceDomain,
                    RDomain == Data],
 
     %% SRV record has priority, weight, port and domain.
-    [{Priority, Weight, Port, Domain}] = [RD || #{domain := RDomain,
+    [{Priority, Weight, Port, _Domain}] = [RD || #{domain := RDomain,
                                                   type := srv,
                                                   data := RD} <- Resources,
                                                 RDomain == Data],
@@ -194,13 +186,13 @@ handle_advertisement([#{domain := ServiceDomain,
                              weight => Weight,
                              port => Port,
                              ttl => TTL,
+                             instance => Data,
                              advertiser => Advertiser,
-                             service => Service,
-                             domain => Domain},
+                             service => Service},
     mdns:notify(advertisement, Detail),
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
-handle_advertisement([_ | Answers], Resources, ServiceDomain, State) ->
+handle_advertisement([_Answer | Answers], Resources, ServiceDomain, State) ->
     handle_advertisement(Answers, Resources, ServiceDomain, State);
 
 handle_advertisement([], _, _, State) ->

@@ -33,6 +33,7 @@ SHELL_OPTS = \
 	-s rb
 
 SHELL_DEPS = \
+	recon \
 	sync
 
 dep_envy = git https://github.com/shortishly/envy.git master
