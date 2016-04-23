@@ -57,9 +57,9 @@ handle_cast(stop, State) ->
     {stop, normal, State}.
 
 
-handle_info({udp, Socket, _, _, Packet}, State) ->
+handle_info({udp, Socket, IP, InPortNo, Packet}, State) ->
     inet:setopts(Socket, [{active, once}]),
-    {noreply, handle_packet(Packet, State)}.
+    {noreply, handle_packet(IP, InPortNo, Packet, State)}.
 
 
 terminate(_Reason, #{socket := Socket}) ->
@@ -70,10 +70,12 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 
-handle_packet(Packet, #{service := Service, domain := Domain} = State) ->
+handle_packet(IP, InPortNo, Packet, #{service := Service, domain := Domain} = State) ->
     {ok, Record} = inet_dns:decode(Packet),
     Header = header(Record),
-    handle_record(Header,
+    handle_record(IP,
+                  InPortNo,
+                  Header,
                   record_type(Record),
                   get_value(qr, Header),
                   get_value(opcode, Header),
@@ -108,6 +110,8 @@ rr(Resources) ->
 
 
 handle_record(_,
+              _,
+              _,
               msg,
               false,
               query,
@@ -121,6 +125,8 @@ handle_record(_,
     State;
 
 handle_record(_,
+              _,
+              _,
               msg,
               false,
               query,
@@ -138,7 +144,9 @@ handle_record(_,
             State
     end;
 
-handle_record(_,
+handle_record(IP,
+              InPortNo,
+              _,
               msg,
               true,
               query,
@@ -148,16 +156,18 @@ handle_record(_,
               Resources,
               ServiceDomain,
               State) ->
-    handle_advertisement(Answers, Resources, ServiceDomain, State);
+    handle_advertisement(IP, InPortNo, Answers, Resources, ServiceDomain, State);
 
-handle_record(_, msg, false, query, _Questions, _Answers, _Authorities, _Resources, _ServiceDomain, State) ->
+handle_record(_, _, _, msg, false, query, _Questions, _Answers, _Authorities, _Resources, _ServiceDomain, State) ->
     State.
 
 
 local_instances(#{advertiser := Advertiser}) ->
     [Instance || #{instance := Instance} <- Advertiser:instances()].
 
-handle_advertisement([#{domain := ServiceDomain,
+handle_advertisement(IP,
+                     InPortNo,
+                     [#{domain := ServiceDomain,
                         type := ptr,
                         class := in,
                         ttl := TTL,
@@ -178,7 +188,9 @@ handle_advertisement([#{domain := ServiceDomain,
                                                    data := RD} <- Resources,
                                                  RDomain == Data],
 
-    Detail = (txt_kvs(KVS))#{priority => Priority,
+    Detail = (txt_kvs(KVS))#{ip => IP,
+                             in_port_no => InPortNo,
+                             priority => Priority,
                              weight => Weight,
                              port => Port,
                              ttl => TTL,
@@ -186,12 +198,12 @@ handle_advertisement([#{domain := ServiceDomain,
                              advertiser => Advertiser,
                              service => Service},
     mdns:notify(advertisement, Detail),
-    handle_advertisement(Answers, Resources, ServiceDomain, State);
+    handle_advertisement(IP, InPortNo, Answers, Resources, ServiceDomain, State);
 
-handle_advertisement([_Answer | Answers], Resources, ServiceDomain, State) ->
-    handle_advertisement(Answers, Resources, ServiceDomain, State);
+handle_advertisement(IP, InPortNo, [_Answer | Answers], Resources, ServiceDomain, State) ->
+    handle_advertisement(IP, InPortNo, Answers, Resources, ServiceDomain, State);
 
-handle_advertisement([], _, _, State) ->
+handle_advertisement(_, _, [], _, _, State) ->
     State.
 
 txt_kvs(Data) ->
