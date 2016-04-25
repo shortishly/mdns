@@ -27,5 +27,5 @@ init([]) ->
     {ok, {#{strategy => simple_one_for_one}, [mdns_sup:worker(mdns_discover)]}}.
 
 start_child(Advertiser) ->
-    supervisor:start_child(?MODULE, [Advertiser]).
+    {ok, _} = supervisor:start_child(?MODULE, [Advertiser]).
 

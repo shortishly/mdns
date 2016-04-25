@@ -36,6 +36,15 @@ SHELL_DEPS = \
 	recon \
 	sync
 
+PLT_APPS = \
+	any \
+	compiler \
+	gproc \
+	mnesia \
+	recon \
+	runtime_tools \
+	syntax_tools
+
 dep_envy = git https://github.com/shortishly/envy.git master
 
 include erlang.mk

@@ -1,5 +1,9 @@
 # Multicast DNS
 
+
+[![Build Status](https://travis-ci.org/shortishly/mdns.svg)](https://travis-ci.org/shortishly/mdns)
+
+
 mDNS is an implementation of the
 [mDNS](http://files.multicastdns.org/draft-cheshire-dnsext-multicastdns.txt)
 discovery protocol written in [Erlang/OTP](http://www.erlang.org/) and

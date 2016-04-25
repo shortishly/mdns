@@ -1,0 +1,7 @@
+language: erlang
+
+otp_release:
+  - 18.2
+
+script:
+  - make
