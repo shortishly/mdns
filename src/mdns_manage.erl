@@ -63,7 +63,7 @@ handle_info({timeout, Node}, #{discovered := Discovered,
                                cancelled := Cancelled} = State) ->
     case Discovered of
         #{Node := Timer} ->
-            erlang:cancel_timer(Timer, [{async, true}, {info, true}]),
+            ok = erlang:cancel_timer(Timer, [{async, true}, {info, true}]),
             {noreply, State#{
                         discovered => maps:remove(Node, Discovered),
                         cancelled => ordsets:add_element(Timer, Cancelled)
@@ -90,7 +90,7 @@ advertisement(Advertisement, 0, #{discovered := Discovered,
                                   cancelled := Cancelled} = State) ->
     case Discovered of
         #{Advertisement := Timer} ->
-            erlang:cancel_timer(Timer, [{async, true}, {info, true}]),
+            ok = erlang:cancel_timer(Timer, [{async, true}, {info, true}]),
             State#{
               discovered => maps:remove(Advertisement, Discovered),
               cancelled => ordsets:add_element(Timer, Cancelled)
@@ -105,7 +105,7 @@ advertisement(Advertisement, TTL, State) ->
         #{cancelled := Cancelled,
           discovered := #{Advertisement := Timer} = Discovered} ->
 
-            erlang:cancel_timer(Timer, [{async, true}, {info, true}]),
+            ok = erlang:cancel_timer(Timer, [{async, true}, {info, true}]),
             State#{
               discovered => Discovered#{
                               Advertisement := send_after_timeout(

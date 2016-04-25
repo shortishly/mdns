@@ -20,12 +20,12 @@
 
 start(_StartType, _StartArgs) ->
     {ok, Sup} = mdns_sup:start_link(),
-    start_advertiser(mdns_erlang_tcp_advertiser),
+    _ = start_advertiser(mdns_erlang_tcp_advertiser),
     {ok, Sup}.
 
 start_advertiser(Advertiser) ->
-    [mdns_discover_sup:start_child(Advertiser) || mdns_config:can(discover)],
-    [mdns_advertise_sup:start_child(Advertiser) || mdns_config:can(advertise)].
+    _ = [mdns_discover_sup:start_child(Advertiser) || mdns_config:can(discover)],
+    _ = [mdns_advertise_sup:start_child(Advertiser) || mdns_config:can(advertise)].
 
 stop(_State) ->
     ok.

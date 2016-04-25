@@ -14,7 +14,6 @@
 
 -module(mdns).
 
--export([make/0]).
 -export([notify/2]).
 -export([start/0]).
 -export([subscribe/1]).
@@ -31,9 +30,6 @@ subscribe(EventType) ->
 notify(EventType, Msg) ->
     Key = {?MODULE, EventType},
     gproc:send({p, l, Key}, {self(), Key, Msg}).
-
-make() ->
-    make:all([load]).
 
 vsn() ->
     {ok, VSN} = application:get_key(?MODULE, vsn),

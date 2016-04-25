@@ -58,8 +58,13 @@ handle_cast(stop, State) ->
 
 
 handle_info({udp, Socket, IP, InPortNo, Packet}, State) ->
-    inet:setopts(Socket, [{active, once}]),
-    {noreply, handle_packet(IP, InPortNo, Packet, State)}.
+    case inet:setopts(Socket, [{active, once}]) of
+        ok ->
+            {noreply, handle_packet(IP, InPortNo, Packet, State)};
+
+        {error, Reason} ->
+            {stop, Reason, State}
+    end.
 
 
 terminate(_Reason, #{socket := Socket}) ->

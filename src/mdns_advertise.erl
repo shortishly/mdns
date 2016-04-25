@@ -84,7 +84,7 @@ handle_info({udp, _, _, _, _}, #{ttl := TTL} = State) ->
 
 
 terminate(_, #{socket := Socket} = State) ->
-    announce(State#{ttl => 0}),
+    _ = announce(State#{ttl => 0}),
     gen_udp:close(Socket).
 
 

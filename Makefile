@@ -15,7 +15,7 @@
 #
 PROJECT = mdns
 PROJECT_DESCRIPTION = Multicast DNS
-PROJECT_VERSION = 0.4.0
+PROJECT_VERSION = 0.4.1
 
 LOCAL_DEPS = \
 	crypto
@@ -35,6 +35,15 @@ SHELL_OPTS = \
 SHELL_DEPS = \
 	recon \
 	sync
+
+PLT_APPS = \
+	any \
+	compiler \
+	gproc \
+	mnesia \
+	recon \
+	runtime_tools \
+	syntax_tools
 
 dep_envy = git https://github.com/shortishly/envy.git master
 
