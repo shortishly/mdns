@@ -13,7 +13,6 @@
 %% limitations under the License.
 
 -module(mdns_erlang_tcp_advertiser).
--behaviour(mdns_advertiser).
 
 -export([instances/0]).
 -export([service/0]).
@@ -23,17 +22,23 @@ service() ->
 
 instances() ->
     {ok, Hostname} = inet:gethostname(),
-    {ok, Names} = net_adm:names(),
-    [#{hostname => Hostname,
-       port => Port,
-       instance => instance(Name, Hostname),
-       properties => #{host => net_adm:localhost(),
-                       env => mdns_config:environment(),
-                       node => Name,
-                       vsn => mdns:vsn()},
-       priority => 0,
-       weight => 0} || {Name, Port} <- Names].
+    
+    case net_adm:names() of
+        {ok, Names} ->
+            [#{hostname => Hostname,
+               port => Port,
+               instance => instance(Name, Hostname),
+               properties => #{host => net_adm:localhost(),
+                               env => mdns_config:environment(),
+                               node => Name,
+                               vsn => mdns:vsn()},
+               priority => 0,
+               weight => 0} || {Name, Port} <- Names];
 
+        {error, address} ->
+            %% Erlang distribution is not enabled.
+            []
+    end.
 
 instance(Node, Hostname) ->
     Node ++ "@" ++ Hostname ++ "." ++ service() ++ mdns_config:domain().
